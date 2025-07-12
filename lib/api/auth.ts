@@ -14,10 +14,10 @@ export interface AuthResult {
 
 /**
  * Authenticates a request and returns user data
- * @param request - The Next.js request object
+ * @param _request - The Next.js request object (prefixed with _ as it might be used in future)
  * @returns Promise<AuthResult> - Authentication result
  */
-export async function authenticateRequest(request: NextRequest): Promise<AuthResult> {
+export async function authenticateRequest(_request: NextRequest): Promise<AuthResult> {
   try {
     const supabase = await createServerSupabaseClient()
     
@@ -49,7 +49,7 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthRes
       user: profile,
       error: null
     }
-  } catch (error) {
+  } catch (_error) {
     return {
       user: null,
       error: 'Authentication failed'
@@ -59,11 +59,11 @@ export async function authenticateRequest(request: NextRequest): Promise<AuthRes
 
 /**
  * Middleware function to require authentication
- * @param request - The Next.js request object
+ * @param _request - The Next.js request object (prefixed with _ as it might be used in future)
  * @returns Promise<User> - Authenticated user or throws error
  */
-export async function requireAuth(request: NextRequest): Promise<User> {
-  const { user, error } = await authenticateRequest(request)
+export async function requireAuth(_request: NextRequest): Promise<User> {
+  const { user, error } = await authenticateRequest(_request)
   
   if (error || !user) {
     throw new Error(error || 'Authentication required')

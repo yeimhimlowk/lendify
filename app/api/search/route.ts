@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
     logAPIRequest(request, 'SEARCH_LISTINGS')
 
     // Parse and validate search parameters
-    const query: SearchQuery = searchQuerySchema.parse({
+    // Filter out null values to prevent Zod coercion errors
+    const params = {
       query: searchParams.get('query'),
       page: searchParams.get('page'),
       limit: searchParams.get('limit'),
@@ -46,7 +47,14 @@ export async function GET(request: NextRequest) {
       available_to: searchParams.get('available_to'),
       sortBy: searchParams.get('sortBy'),
       sortOrder: searchParams.get('sortOrder')
-    })
+    }
+    
+    // Remove null values
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([_, value]) => value !== null)
+    )
+    
+    const query: SearchQuery = searchQuerySchema.parse(cleanParams)
 
     const supabase = await createServerSupabaseClient()
 
@@ -64,13 +72,13 @@ export async function GET(request: NextRequest) {
     if (query.query) {
       const searchTerms = query.query.trim().toLowerCase()
       
-      // Use PostgreSQL full-text search
-      dbQuery = dbQuery.or(`
-        title.ilike.%${searchTerms}%,
-        description.ilike.%${searchTerms}%,
-        tags.cs.{${searchTerms}},
-        categories.name.ilike.%${searchTerms}%
-      `)
+      // Use PostgreSQL full-text search on listing fields only
+      // Note: Cannot search categories.name directly in or() filter
+      dbQuery = dbQuery.or(`title.ilike.%${searchTerms}%,description.ilike.%${searchTerms}%`)
+      
+      // Check if any tags contain the search term
+      // Using contains for array search
+      // dbQuery = dbQuery.contains('tags', [searchTerms])
     }
 
     // Category filter

@@ -58,10 +58,18 @@ export async function GET(
     const userId = uuidSchema.parse(id)
 
     // Parse query parameters
-    const query = userQuerySchema.parse({
+    // Filter out null values to prevent Zod coercion errors
+    const params = {
       include_stats: searchParams.get('include_stats'),
       include_reviews: searchParams.get('include_reviews')
-    })
+    }
+    
+    // Remove null values
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([_, value]) => value !== null)
+    )
+    
+    const query = userQuerySchema.parse(cleanParams)
 
     const supabase = await createServerSupabaseClient()
 

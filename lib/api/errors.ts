@@ -2,6 +2,21 @@ import { NextResponse } from 'next/server'
 import { ZodError } from 'zod'
 
 /**
+ * Type guard to check if an error is ZodError-like
+ * @param error - The error to check
+ * @returns true if the error is a ZodError or has ZodError-like properties
+ */
+export function isZodErrorLike(error: unknown): boolean {
+  return (
+    error instanceof ZodError ||
+    (error !== null &&
+      typeof error === 'object' &&
+      'name' in error &&
+      error.name === 'ZodError')
+  )
+}
+
+/**
  * Standard API error response structure
  */
 export interface APIError {
@@ -73,14 +88,42 @@ export function createErrorResponse(
 
 /**
  * Handle Zod validation errors
- * @param error - Zod error object
+ * @param error - Zod error object or error with ZodError-like structure
  * @returns NextResponse with validation error
  */
-export function handleValidationError(error: ZodError): NextResponse {
+export function handleValidationError(error: unknown): NextResponse {
+  // Type guard to ensure we have a proper ZodError
+  if (!(error instanceof ZodError)) {
+    // If it's not a ZodError instance but has the name property, log warning
+    if (error && typeof error === 'object' && 'name' in error && error.name === 'ZodError') {
+      console.warn('Received error with ZodError name but not a ZodError instance:', error)
+    }
+    
+    // Fallback to generic validation error
+    return createErrorResponse(
+      'Validation failed',
+      400,
+      ErrorCode.VALIDATION_ERROR,
+      { message: error instanceof Error ? error.message : 'Unknown validation error' }
+    )
+  }
+
+  // Defensive check for errors array
+  if (!error.errors || !Array.isArray(error.errors)) {
+    console.error('ZodError missing errors array:', error)
+    return createErrorResponse(
+      'Validation failed',
+      400,
+      ErrorCode.VALIDATION_ERROR,
+      { message: error.message || 'Unknown validation error' }
+    )
+  }
+
+  // Safe mapping of error details
   const details = error.errors.map(err => ({
-    field: err.path.join('.'),
-    message: err.message,
-    code: err.code
+    field: err.path?.join('.') || 'unknown',
+    message: err.message || 'Validation error',
+    code: err.code || 'custom'
   }))
 
   return createErrorResponse(
@@ -195,6 +238,11 @@ export function handleAPIError(error: unknown): NextResponse {
 
   // Handle Zod validation errors
   if (error instanceof ZodError) {
+    return handleValidationError(error)
+  }
+  
+  // Also handle errors that claim to be ZodErrors but aren't instances
+  if (error && typeof error === 'object' && 'name' in error && error.name === 'ZodError') {
     return handleValidationError(error)
   }
 

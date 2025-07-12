@@ -42,7 +42,8 @@ export async function GET(request: NextRequest) {
     const user = await requireAuth(request)
 
     // Parse and validate query parameters
-    const query: BookingQuery = bookingQuerySchema.parse({
+    // Filter out null values to prevent Zod coercion errors
+    const params = {
       page: searchParams.get('page'),
       limit: searchParams.get('limit'),
       status: searchParams.get('status'),
@@ -53,7 +54,14 @@ export async function GET(request: NextRequest) {
       owner_id: searchParams.get('owner_id'),
       sortBy: searchParams.get('sortBy'),
       sortOrder: searchParams.get('sortOrder')
-    })
+    }
+    
+    // Remove null values
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([_, value]) => value !== null)
+    )
+    
+    const query: BookingQuery = bookingQuerySchema.parse(cleanParams)
 
     const supabase = await createServerSupabaseClient()
 

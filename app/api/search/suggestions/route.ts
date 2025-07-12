@@ -29,11 +29,19 @@ export async function GET(request: NextRequest) {
     logAPIRequest(request, 'SEARCH_SUGGESTIONS')
 
     // Parse and validate query parameters
-    const query: SearchSuggestions = searchSuggestionsSchema.parse({
+    // Filter out null values to prevent Zod coercion errors
+    const params = {
       query: searchParams.get('query'),
       limit: searchParams.get('limit'),
       type: searchParams.get('type')
-    })
+    }
+    
+    // Remove null values
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([_, value]) => value !== null)
+    )
+    
+    const query: SearchSuggestions = searchSuggestionsSchema.parse(cleanParams)
 
     if (!query.query || query.query.length < 2) {
       return NextResponse.json(

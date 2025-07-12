@@ -36,7 +36,8 @@ export async function GET(request: NextRequest) {
     logAPIRequest(request, 'GET_LISTINGS')
 
     // Parse and validate query parameters
-    const query: ListingQuery = listingQuerySchema.parse({
+    // Filter out null values to prevent Zod coercion errors
+    const params = {
       page: searchParams.get('page'),
       limit: searchParams.get('limit'),
       category: searchParams.get('category'),
@@ -52,7 +53,14 @@ export async function GET(request: NextRequest) {
       longitude: searchParams.get('longitude'),
       radius: searchParams.get('radius'),
       featured: searchParams.get('featured')
-    })
+    }
+    
+    // Remove null values
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([_, value]) => value !== null)
+    )
+    
+    const query: ListingQuery = listingQuerySchema.parse(cleanParams)
 
     const supabase = await createServerSupabaseClient()
     
@@ -161,9 +169,7 @@ export async function GET(request: NextRequest) {
     return addSecurityHeaders(response)
 
   } catch (error: any) {
-    if (error.name === 'ZodError') {
-      return handleValidationError(error)
-    }
+    // Use the global error handler which now properly handles ZodError-like errors
     return handleAPIError(error)
   }
 }

@@ -34,11 +34,19 @@ export async function GET(request: NextRequest) {
     logAPIRequest(request, 'GET_CATEGORIES')
 
     // Parse query parameters
-    const query = categoryQuerySchema.parse({
+    // Filter out null values to prevent Zod coercion errors
+    const params = {
       parent_id: searchParams.get('parent_id'),
       include_children: searchParams.get('include_children'),
       include_counts: searchParams.get('include_counts')
-    })
+    }
+    
+    // Remove null values
+    const cleanParams = Object.fromEntries(
+      Object.entries(params).filter(([_, value]) => value !== null)
+    )
+    
+    const query = categoryQuerySchema.parse(cleanParams)
 
     const supabase = await createServerSupabaseClient()
 

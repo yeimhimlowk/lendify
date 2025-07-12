@@ -141,7 +141,7 @@ export const categoryQuerySchema = z.object({
  * Search validation schemas
  */
 export const searchQuerySchema = z.object({
-  query: z.string().min(1).max(500),
+  query: z.string().min(1).max(500).optional(),
   page: z.coerce.number().min(1).default(1),
   limit: z.coerce.number().min(1).max(100).default(20),
   category: z.string().optional(),
