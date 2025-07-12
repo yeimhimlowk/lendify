@@ -35,6 +35,10 @@ export const createListingSchema = z.object({
   address: z.string().min(5).max(500),
   location: locationSchema,
   photos: z.array(z.string().url()).min(1).max(10),
+  photoData: z.array(z.object({
+    url: z.string().url(),
+    path: z.string()
+  })).optional(), // Stores the storage paths for deletion
   tags: z.array(z.string().min(1).max(50)).max(20).optional(),
   availability: z.record(z.boolean()).optional(),
   status: listingStatusSchema.default('draft')

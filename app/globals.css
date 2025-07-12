@@ -98,3 +98,277 @@
     border-color: transparent;
   }
 }
+
+@layer utilities {
+  /* Orb movement animation */
+  @keyframes orb-travel {
+    0% {
+      transform: translateX(-20px);
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    90% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(calc(100% + 20px));
+      opacity: 0;
+    }
+  }
+  
+  @keyframes orb-travel-reverse {
+    0% {
+      transform: translateX(calc(100% + 20px));
+      opacity: 0;
+    }
+    10% {
+      opacity: 1;
+    }
+    90% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(-20px);
+      opacity: 0;
+    }
+  }
+  
+  /* Orb container and components */
+  .orb-container {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    animation: orb-travel 0.8s ease-in-out forwards;
+  }
+  
+  .orb-container-reverse {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    animation: orb-travel-reverse 0.8s ease-in-out forwards;
+  }
+  
+  .orb-core {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.8), var(--primary));
+    border-radius: 50%;
+    box-shadow: 0 0 20px rgba(255, 56, 92, 0.8),
+                0 0 40px rgba(255, 56, 92, 0.5),
+                inset 0 0 10px rgba(255, 255, 255, 0.5);
+    z-index: 3;
+    top: -6px;
+    left: -6px;
+  }
+  
+  .orb-glow {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    background: radial-gradient(circle, rgba(255, 56, 92, 0.4), transparent);
+    border-radius: 50%;
+    top: -12px;
+    left: -12px;
+    z-index: 2;
+    animation: orb-glow-pulse 0.8s ease-in-out infinite;
+  }
+  
+  @keyframes orb-glow-pulse {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 0.8;
+    }
+    50% {
+      transform: scale(1.2);
+      opacity: 1;
+    }
+  }
+  
+  /* Orb trail effect */
+  .orb-trail {
+    position: absolute;
+    height: 4px;
+    background: linear-gradient(to right, transparent, rgba(255, 56, 92, 0.3), rgba(255, 56, 92, 0.6));
+    top: -2px;
+    left: -80px;
+    right: 6px;
+    z-index: 1;
+    animation: trail-fade 0.8s ease-out forwards;
+  }
+  
+  .orb-trail-reverse {
+    position: absolute;
+    height: 4px;
+    background: linear-gradient(to left, transparent, rgba(255, 56, 92, 0.3), rgba(255, 56, 92, 0.6));
+    top: -2px;
+    right: -80px;
+    left: 6px;
+    z-index: 1;
+    animation: trail-fade 0.8s ease-out forwards;
+  }
+  
+  @keyframes trail-fade {
+    0% {
+      opacity: 0;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  
+  /* Splash ripple effects */
+  .splash-ripple {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid var(--primary);
+    opacity: 0;
+    pointer-events: none;
+  }
+  
+  .splash-ripple-1 {
+    animation: splash-expand 1s ease-out 0.7s forwards;
+  }
+  
+  .splash-ripple-2 {
+    animation: splash-expand 1s ease-out 0.8s forwards;
+  }
+  
+  .splash-ripple-3 {
+    animation: splash-expand 1s ease-out 0.9s forwards;
+  }
+  
+  .splash-ripple-4 {
+    animation: splash-expand 1s ease-out 1s forwards;
+  }
+  
+  @keyframes splash-expand {
+    0% {
+      transform: scale(1);
+      opacity: 0.8;
+    }
+    100% {
+      transform: scale(2.5);
+      opacity: 0;
+      border-width: 1px;
+    }
+  }
+  
+  /* Pulse glow animation for the destination circle */
+  @keyframes pulse-glow {
+    0% {
+      transform: scale(1);
+      opacity: 0;
+    }
+    10% {
+      opacity: 0.5;
+    }
+    100% {
+      transform: scale(1.8);
+      opacity: 0;
+    }
+  }
+  
+  .animate-pulse-glow {
+    animation: pulse-glow 1.2s ease-out 0.7s forwards;
+    pointer-events: none;
+  }
+  
+  /* Delayed fill animation for progress line */
+  @keyframes delayed-fill {
+    0%, 70% {
+      transform: scaleX(0);
+    }
+    100% {
+      transform: scaleX(1);
+    }
+  }
+  
+  .animate-delayed-fill {
+    animation: delayed-fill 1.2s ease-out forwards;
+  }
+  
+  /* Delayed empty animation for progress line */
+  @keyframes delayed-empty {
+    0%, 70% {
+      transform: scaleX(1);
+    }
+    100% {
+      transform: scaleX(0);
+    }
+  }
+  
+  .animate-delayed-empty {
+    animation: delayed-empty 1.2s ease-out forwards;
+  }
+  
+  /* Sparkle particles around the orb */
+  .orb-particle {
+    position: absolute;
+    width: 4px;
+    height: 4px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.9), rgba(255, 56, 92, 0.8));
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(255, 56, 92, 0.8);
+  }
+  
+  .particle-1 {
+    animation: particle-orbit-1 1.5s linear infinite;
+  }
+  
+  .particle-2 {
+    animation: particle-orbit-2 1.5s linear infinite;
+  }
+  
+  .particle-3 {
+    animation: particle-orbit-3 1.5s linear infinite;
+  }
+  
+  @keyframes particle-orbit-1 {
+    0% {
+      transform: rotate(0deg) translateX(15px) rotate(0deg);
+      opacity: 0;
+    }
+    20%, 80% {
+      opacity: 1;
+    }
+    100% {
+      transform: rotate(360deg) translateX(15px) rotate(-360deg);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes particle-orbit-2 {
+    0% {
+      transform: rotate(120deg) translateX(15px) rotate(-120deg);
+      opacity: 0;
+    }
+    20%, 80% {
+      opacity: 0.8;
+    }
+    100% {
+      transform: rotate(480deg) translateX(15px) rotate(-480deg);
+      opacity: 0;
+    }
+  }
+  
+  @keyframes particle-orbit-3 {
+    0% {
+      transform: rotate(240deg) translateX(15px) rotate(-240deg);
+      opacity: 0;
+    }
+    20%, 80% {
+      opacity: 0.6;
+    }
+    100% {
+      transform: rotate(600deg) translateX(15px) rotate(-600deg);
+      opacity: 0;
+    }
+  }
+}

@@ -21,21 +21,21 @@
 - [x] Update header component with auth state
 - [x] Add authentication guards for protected routes
 
-### 🔲 Search Functionality - PENDING
-- [ ] Build `/search` results page
-- [ ] Connect frontend search to API endpoints
-- [ ] Implement search filters UI (price, location, category)
-- [ ] Add search suggestions/autocomplete
+### ✅ Search Functionality - COMPLETED
+- [x] Build `/search` results page
+- [x] Connect frontend search to API endpoints
+- [x] Implement search filters UI (price, location, category)
+- [x] Add search suggestions/autocomplete
 - [ ] Implement map-based search with Mapbox
 - [ ] Add saved searches functionality
 
-### 🔲 Listing Creation - PENDING
-- [ ] Build `/host` page with listing creation wizard
-- [ ] Implement photo upload with drag & drop
-- [ ] Add listing form with validation
-- [ ] Connect to AI content generation API
-- [ ] Add pricing suggestions from AI
-- [ ] Implement listing preview functionality
+### ✅ Listing Creation - COMPLETED
+- [x] Build `/host` page with listing creation wizard
+- [x] Implement photo upload with drag & drop
+- [x] Add listing form with validation
+- [x] Connect to AI content generation API
+- [x] Add pricing suggestions from AI
+- [x] Implement listing preview functionality
 
 ### 🔲 Listing Detail Pages - PENDING
 - [ ] Create `/listings/[id]` pages
@@ -223,19 +223,18 @@
 
 ## 📊 Progress Summary
 
-**Completed:** 2/6 high priority tasks (33.3%)
+**Completed:** 4/6 high priority tasks (66.7%)
 **In Progress:** 0/6 high priority tasks 
-**Remaining High Priority:** 4/6 tasks
+**Remaining High Priority:** 2/6 tasks
 
 **Total Features:** 40+ major features/systems
 **Critical Path:** Auth → Search → Listing Creation → Listing Details → Data Integration
 
 ## 🎯 Next Steps
 
-1. **Build Search Page** - Connect frontend to search API (NEXT PRIORITY)
-2. **Create Listing Flow** - Host page with creation wizard
-3. **Add Listing Details** - Individual listing pages
-4. **Replace Mock Data** - Connect to real database
-5. **Implement Maps** - Add Mapbox for location-based features
+1. **Create Listing Flow** - Host page with creation wizard (NEXT PRIORITY)
+2. **Add Listing Details** - Individual listing pages
+3. **Replace Mock Data** - Connect to real database
+4. **Implement Maps** - Add Mapbox for location-based features
 
 Once these 5 remaining high-priority items are complete, the app will be a fully functional MVP ready for users!
