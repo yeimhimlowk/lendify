@@ -59,7 +59,18 @@ export default async function FeaturedListings() {
     }
   ]
 
-  const displayListings = listings?.length ? listings : mockListings
+  const displayListings = listings?.length 
+    ? listings.map(listing => ({
+        id: listing.id,
+        title: listing.title,
+        photos: listing.photos || [],
+        price_per_day: listing.price_per_day,
+        address: listing.address || undefined,
+        rating: undefined,
+        rating_count: undefined,
+        owner: listing.owner ? { full_name: listing.owner.full_name || 'Unknown' } : undefined
+      }))
+    : mockListings
 
   return (
     <section className="px-4 py-16 bg-gray-50">

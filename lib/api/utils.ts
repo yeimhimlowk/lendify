@@ -37,11 +37,11 @@ export const searchSchema = z.object({
  * @returns Parsed pagination parameters
  */
 export function extractPagination(searchParams: URLSearchParams) {
-  const page = parseInt(searchParams.get('page') || '1', 10)
-  const limit = parseInt(searchParams.get('limit') || '20', 10)
+  const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10))
+  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20', 10)))
   const offset = (page - 1) * limit
 
-  return paginationSchema.parse({ page, limit, offset })
+  return { page, limit, offset }
 }
 
 /**
@@ -82,7 +82,7 @@ export async function parseJSONBody<T>(request: NextRequest): Promise<T> {
   try {
     const body = await request.json()
     return body as T
-  } catch (error) {
+  } catch (_error) {
     throw new Error('Invalid JSON body')
   }
 }

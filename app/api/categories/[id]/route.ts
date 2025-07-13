@@ -51,7 +51,7 @@ export async function GET(
       .from('categories')
       .select(`
         *,
-        parent:categories!categories_parent_id_fkey(id, name, slug, icon)
+        parent:categories!categories_parent_id_fkey(*)
       `)
       .eq('id', categoryId)
       .single()
@@ -83,6 +83,7 @@ export async function GET(
 
     const categoryWithDetails: CategoryWithDetails = {
       ...category,
+      parent: Array.isArray(category.parent) ? category.parent[0] : category.parent,
       children: children || [],
       _count: {
         listings: totalListingsResult.count || 0,

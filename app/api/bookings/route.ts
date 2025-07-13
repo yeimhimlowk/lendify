@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { authenticateRequest, requireAuth } from '@/lib/api/auth'
+import { requireAuth } from '@/lib/api/auth'
 import { 
   handleAPIError, 
   handleAuthError, 
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
           price_per_day,
           photos,
           address,
-          category:categories(id, name, slug, icon)
+          category:categories(*)
         ),
         renter:profiles!bookings_renter_id_fkey(id, full_name, avatar_url, rating, verified),
         owner:profiles!bookings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
@@ -274,7 +274,7 @@ export async function POST(request: NextRequest) {
           price_per_day,
           photos,
           address,
-          category:categories(id, name, slug, icon)
+          category:categories(*)
         ),
         renter:profiles!bookings_renter_id_fkey(id, full_name, avatar_url, rating, verified),
         owner:profiles!bookings_owner_id_fkey(id, full_name, avatar_url, rating, verified)

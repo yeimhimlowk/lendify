@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm, FormProvider } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { createListingSchema, type CreateListingInput } from '@/lib/api/schemas'
+import { createListingSchema } from '@/lib/api/schemas'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
@@ -32,9 +32,10 @@ export default function CreateListingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [draftSaved, setDraftSaved] = useState(false)
   const [isAnimating, setIsAnimating] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<string[]>([])
 
-  const methods = useForm<CreateListingInput>({
-    resolver: zodResolver(createListingSchema),
+  const methods = useForm({
+    resolver: zodResolver(createListingSchema) as any,
     defaultValues: {
       title: '',
       description: '',
@@ -62,6 +63,12 @@ export default function CreateListingPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formData])
 
+  // Monitor currentStep changes
+  useEffect(() => {
+    console.log('currentStep changed to:', currentStep)
+    setDebugInfo(prev => [...prev, `currentStep changed to: ${currentStep}`])
+  }, [currentStep])
+
   const saveDraft = async () => {
     try {
       // TODO: Implement API call to save draft
@@ -73,7 +80,18 @@ export default function CreateListingPage() {
     }
   }
 
-  const onSubmit = async (data: CreateListingInput) => {
+  const onSubmit = async (data: any) => {
+    console.log('onSubmit called! Current step:', currentStep)
+    console.trace('Submit call stack')
+    
+    // Double-check we're on the final step
+    if (currentStep !== 6) {
+      console.error('onSubmit called but not on final step! Preventing submission.')
+      setDebugInfo(prev => [...prev, `ERROR: onSubmit called at step ${currentStep} - BLOCKED`])
+      return
+    }
+    
+    setDebugInfo(prev => [...prev, `FORM SUBMITTED at step ${currentStep} - Processing...`])
     setIsSubmitting(true)
     try {
       // TODO: Implement API call to create listing
@@ -88,15 +106,39 @@ export default function CreateListingPage() {
   }
 
   const nextStep = async () => {
-    const fields = getFieldsForStep(currentStep)
-    const isValid = await methods.trigger(fields)
+    console.log('nextStep called, currentStep:', currentStep)
+    setDebugInfo(prev => [...prev, `nextStep called at step ${currentStep}`])
     
-    if (isValid && currentStep < steps.length) {
-      setIsAnimating(true)
-      setPreviousStep(currentStep)
-      setCurrentStep(currentStep + 1)
-      window.scrollTo({ top: 0, behavior: 'smooth' })
-      setTimeout(() => setIsAnimating(false), 1200)
+    const fields = getFieldsForStep(currentStep)
+    console.log('Fields to validate:', fields)
+    setDebugInfo(prev => [...prev, `Fields to validate: ${fields.join(', ')}`])
+    
+    try {
+      const isValid = await methods.trigger(fields)
+      console.log('Validation result:', isValid)
+      console.log('Form errors:', methods.formState.errors)
+      console.log('Current form values:', methods.getValues())
+      setDebugInfo(prev => [...prev, `Validation result: ${isValid}`])
+      
+      if (isValid && currentStep < steps.length) {
+        console.log('Moving to step:', currentStep + 1)
+        setDebugInfo(prev => [...prev, `Moving from step ${currentStep} to ${currentStep + 1}`])
+        setIsAnimating(true)
+        setPreviousStep(currentStep)
+        setCurrentStep(currentStep + 1)
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+        setTimeout(() => setIsAnimating(false), 1200)
+      } else {
+        console.log('Validation failed or at last step')
+        setDebugInfo(prev => [...prev, `Validation failed or at last step. isValid: ${isValid}, currentStep: ${currentStep}, steps.length: ${steps.length}`])
+        if (!isValid) {
+          console.log('Validation errors:', methods.formState.errors)
+          setDebugInfo(prev => [...prev, `Validation errors: ${JSON.stringify(methods.formState.errors)}`])
+        }
+      }
+    } catch (error) {
+      console.error('Error in nextStep:', error)
+      setDebugInfo(prev => [...prev, `Error in nextStep: ${error}`])
     }
   }
 
@@ -136,18 +178,18 @@ export default function CreateListingPage() {
     }
   }
 
-  const getFieldsForStep = (step: number): (keyof CreateListingInput)[] => {
+  const getFieldsForStep = (step: number): any[] => {
     switch (step) {
       case 1:
-        return ['title', 'description', 'category_id', 'condition']
+        return ['title', 'description', 'category_id']
       case 2:
-        return ['price_per_day', 'price_per_week', 'price_per_month', 'deposit_amount']
+        return ['price_per_day']
       case 3:
         return ['address', 'location']
       case 4:
         return ['photos']
       case 5:
-        return ['tags']
+        return ['condition']
       default:
         return []
     }
@@ -285,9 +327,58 @@ export default function CreateListingPage() {
             </div>
           </div>
 
+        {/* Debug Info */}
+        {debugInfo.length > 0 && (
+          <Card className="p-4 mb-4 bg-yellow-50 border-yellow-200">
+            <h3 className="font-semibold text-sm mb-2">Debug Info:</h3>
+            <div className="text-xs space-y-1">
+              {debugInfo.map((info, index) => (
+                <div key={index}>{info}</div>
+              ))}
+            </div>
+          </Card>
+        )}
+
         {/* Form */}
         <FormProvider {...methods}>
-          <form onSubmit={handleSubmit(onSubmit)}>
+          <form 
+            onSubmit={(e) => {
+              console.log('Form onSubmit triggered, currentStep:', currentStep)
+              setDebugInfo(prev => [...prev, `Form onSubmit triggered at step ${currentStep}`])
+              
+              // Only allow form submission on the final step
+              if (currentStep !== 6) {
+                console.log('Preventing form submission - not on final step')
+                e.preventDefault()
+                e.stopPropagation()
+                return
+              }
+              
+              handleSubmit(onSubmit)(e)
+            }}
+            onKeyDown={(e) => {
+              // Prevent form submission on Enter key except on final step
+              if (e.key === 'Enter') {
+                const target = e.target as HTMLElement
+                const tagName = target.tagName.toLowerCase()
+                
+                // Allow Enter in textareas
+                if (tagName === 'textarea') {
+                  return
+                }
+                
+                // For all other cases (input fields, etc.), prevent submission except on final step
+                if (currentStep !== 6) {
+                  console.log('Preventing Enter key form submission at step:', currentStep, 'Target:', tagName)
+                  setDebugInfo(prev => [...prev, `Enter key prevented at step ${currentStep} on ${tagName}`])
+                  e.preventDefault()
+                  e.stopPropagation()
+                } else {
+                  console.log('Allowing Enter key submission on final step')
+                  setDebugInfo(prev => [...prev, `Enter key allowed at final step ${currentStep}`])
+                }
+              }
+            }}>
             <Card className="p-6 sm:p-8">
               <CurrentStepComponent />
 
@@ -316,13 +407,22 @@ export default function CreateListingPage() {
                     <Button
                       type="submit"
                       disabled={isSubmitting}
+                      onClick={() => {
+                        console.log('Create Listing button clicked on final step')
+                        setDebugInfo(prev => [...prev, `Create Listing button clicked at step ${currentStep}`])
+                      }}
                     >
                       {isSubmitting ? 'Creating...' : 'Create Listing'}
                     </Button>
                   ) : (
                     <Button
                       type="button"
-                      onClick={nextStep}
+                      onClick={(e) => {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        console.log('Next button clicked!')
+                        nextStep()
+                      }}
                     >
                       Next
                     </Button>
@@ -350,7 +450,11 @@ export default function CreateListingPage() {
                 <Button
                   type="button"
                   size="sm"
-                  onClick={handleSubmit(onSubmit)}
+                  onClick={(e) => {
+                    console.log('Mobile Create button clicked at final step')
+                    setDebugInfo(prev => [...prev, `Mobile Create button clicked at step ${currentStep}`])
+                    handleSubmit(onSubmit)(e)
+                  }}
                   disabled={isSubmitting}
                 >
                   {isSubmitting ? 'Creating...' : 'Create'}
@@ -359,7 +463,12 @@ export default function CreateListingPage() {
                 <Button
                   type="button"
                   size="sm"
-                  onClick={nextStep}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    console.log('Mobile Next button clicked!')
+                    nextStep()
+                  }}
                 >
                   Next
                 </Button>

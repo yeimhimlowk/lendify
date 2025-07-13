@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       result = await generateAIContent(validatedData)
       
       // Log successful generation for analytics
-      await supabase
+      const { error: logError } = await supabase
         .from('ai_usage_logs')
         .insert({
           user_id: user.id,
@@ -56,7 +56,10 @@ export async function POST(request: NextRequest) {
           success: true,
           created_at: new Date().toISOString()
         })
-        .catch(console.error) // Don't fail request if logging fails
+      
+      if (logError) {
+        console.error('Failed to log AI usage:', logError)
+      }
 
     } catch (aiError) {
       console.error('AI Content Generation Error:', aiError)
@@ -65,7 +68,7 @@ export async function POST(request: NextRequest) {
       result = generateFallbackContent(validatedData)
       
       // Log failed generation
-      await supabase
+      const { error: logError } = await supabase
         .from('ai_usage_logs')
         .insert({
           user_id: user.id,
@@ -75,7 +78,10 @@ export async function POST(request: NextRequest) {
           error_message: aiError instanceof Error ? aiError.message : 'Unknown error',
           created_at: new Date().toISOString()
         })
-        .catch(console.error)
+      
+      if (logError) {
+        console.error('Failed to log AI usage error:', logError)
+      }
     }
 
     logAPIRequest(request, 'AI_GENERATE_CONTENT_SUCCESS', user.id)
@@ -163,7 +169,7 @@ async function generateAIContent(data: GenerateContentInput): Promise<ContentGen
  * Generate fallback content using templates
  */
 function generateFallbackContent(data: GenerateContentInput): ContentGenerationResult {
-  const { type, context, tone } = data
+  const { type, context } = data
 
   let content = ''
 

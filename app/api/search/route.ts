@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
       .from('listings')
       .select(`
         *,
-        category:categories(id, name, slug, icon),
+        category:categories(*),
         owner:profiles!listings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
       `)
       .eq('status', 'active')
@@ -90,15 +90,13 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Location-based filtering
+    // Handle geographic search separately since RPC can't be chained
+    let listings: any[] = []
+    let useGeographicSearch = false
+    
     if (query.latitude && query.longitude) {
-      // Use PostGIS for geographic search
-      const radiusInMeters = query.radius * 1000
-      dbQuery = dbQuery.rpc('listings_within_radius', {
-        lat: query.latitude,
-        lng: query.longitude,
-        radius_meters: radiusInMeters
-      })
+      useGeographicSearch = true
+      // We'll handle this after building the filters
     } else if (query.location) {
       // Text-based location search
       dbQuery = dbQuery.ilike('address', `%${query.location}%`)
@@ -142,66 +140,131 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Execute geographic search if needed
+    if (useGeographicSearch) {
+      const radiusInMeters = query.radius * 1000
+      const { data: nearbyListings, error: rpcError } = await supabase
+        .rpc('listings_within_radius', {
+          lat: query.latitude!,
+          lng: query.longitude!,
+          radius_meters: radiusInMeters
+        })
+      
+      if (rpcError) {
+        throw new Error(`Location search error: ${rpcError.message}`)
+      }
+      
+      // Apply other filters to geographic results
+      listings = (nearbyListings || []).filter((listing: any) => {
+        let match = listing.status === 'active'
+        
+        if (query.query) {
+          const searchTerms = query.query.trim().toLowerCase()
+          match = match && (
+            listing.title?.toLowerCase().includes(searchTerms) ||
+            listing.description?.toLowerCase().includes(searchTerms)
+          )
+        }
+        
+        if (query.category) {
+          // Need to check category slug separately
+          match = match && listing.category_id === query.category
+        }
+        
+        if (query.minPrice) {
+          match = match && listing.price_per_day >= query.minPrice
+        }
+        
+        if (query.maxPrice) {
+          match = match && listing.price_per_day <= query.maxPrice
+        }
+        
+        if (query.condition) {
+          match = match && listing.condition === query.condition
+        }
+        
+        if (query.tags) {
+          const tags = query.tags.split(',').map(tag => tag.trim().toLowerCase())
+          match = match && listing.tags?.some((tag: string) => tags.includes(tag.toLowerCase()))
+        }
+        
+        return match
+      })
+      
+      // Now fetch the full data with relationships
+      if (listings.length > 0) {
+        const listingIds = listings.map(l => l.id)
+        const { data: fullListings, error: fetchError } = await supabase
+          .from('listings')
+          .select(`
+            *,
+            category:categories(*),
+            owner:profiles!listings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
+          `)
+          .in('id', listingIds)
+        
+        if (fetchError) {
+          throw new Error(`Database error: ${fetchError.message}`)
+        }
+        
+        listings = fullListings || []
+      }
+    } else {
+      // Non-geographic query
+      const { data, error } = await dbQuery
+      
+      if (error) {
+        throw new Error(`Database error: ${error.message}`)
+      }
+      
+      listings = data || []
+    }
+    
     // Get total count for pagination (before sorting and limiting)
-    const countQuery = supabase
-      .from('listings')
-      .select('*', { count: 'exact', head: true })
+    const totalCount = listings.length
     
-    // Apply same filters to count query
-    let countQueryWithFilters = countQuery.eq('status', 'active')
-    
-    if (query.query) {
-      const searchTerms = query.query.trim().toLowerCase()
-      countQueryWithFilters = countQueryWithFilters.or(`
-        title.ilike.%${searchTerms}%,
-        description.ilike.%${searchTerms}%,
-        tags.cs.{${searchTerms}}
-      `)
-    }
-    
-    // Apply other filters to count query...
-    if (query.category && query.category.match(/^[0-9a-f]{8}-/)) {
-      countQueryWithFilters = countQueryWithFilters.eq('category_id', query.category)
-    }
-    if (query.minPrice) countQueryWithFilters = countQueryWithFilters.gte('price_per_day', query.minPrice)
-    if (query.maxPrice) countQueryWithFilters = countQueryWithFilters.lte('price_per_day', query.maxPrice)
-    if (query.condition) countQueryWithFilters = countQueryWithFilters.eq('condition', query.condition)
+    // Handle availability filter for geographic results
+    if (useGeographicSearch && query.available_from && query.available_to) {
+      // Check for availability conflicts with existing bookings
+      const { data: conflictingBookings } = await supabase
+        .from('bookings')
+        .select('listing_id')
+        .in('status', ['confirmed', 'active'])
+        .or(`
+          and(start_date.lte.${query.available_from},end_date.gte.${query.available_from}),
+          and(start_date.lte.${query.available_to},end_date.gte.${query.available_to}),
+          and(start_date.gte.${query.available_from},end_date.lte.${query.available_to})
+        `)
 
-    const { count } = await countQueryWithFilters
+      if (conflictingBookings && conflictingBookings.length > 0) {
+        const conflictingListingIds = conflictingBookings.map(b => b.listing_id)
+        listings = listings.filter(l => !conflictingListingIds.includes(l.id))
+      }
+    }
 
     // Apply sorting
-    if (query.sortBy === 'relevance' && query.query) {
-      // For relevance sorting with text search, use ts_rank
-      dbQuery = dbQuery.order('created_at', { ascending: false }) // Fallback ordering
-    } else if (query.sortBy === 'distance' && query.latitude && query.longitude) {
-      // Distance sorting will be handled by the RPC function
-      dbQuery = dbQuery.order('created_at', { ascending: false }) // Fallback ordering
-    } else {
-      // Standard sorting
-      const sortMapping = {
-        'price_per_day': 'price_per_day',
-        'created_at': 'created_at',
-        'distance': 'created_at' // Fallback if no coordinates
-      }
-      const sortColumn = sortMapping[query.sortBy as keyof typeof sortMapping] || 'created_at'
-      dbQuery = dbQuery.order(sortColumn, { ascending: query.sortOrder === 'asc' })
+    const sortMapping = {
+      'price_per_day': 'price_per_day',
+      'created_at': 'created_at',
+      'distance': 'created_at' // Fallback if no coordinates
     }
+    const sortColumn = sortMapping[query.sortBy as keyof typeof sortMapping] || 'created_at'
+    
+    listings.sort((a, b) => {
+      const aValue = a[sortColumn]
+      const bValue = b[sortColumn]
+      
+      if (aValue < bValue) return query.sortOrder === 'asc' ? -1 : 1
+      if (aValue > bValue) return query.sortOrder === 'asc' ? 1 : -1
+      return 0
+    })
 
     // Apply pagination
     const offset = (query.page - 1) * query.limit
-    dbQuery = dbQuery.range(offset, offset + query.limit - 1)
-
-    const { data: results, error } = await dbQuery
-
-    if (error) {
-      throw new Error(`Search error: ${error.message}`)
-    }
+    const paginatedListings = listings.slice(offset, offset + query.limit)
 
     // Enhance results with relevance scoring and distance calculation
-    let enhancedResults: SearchResult[] = results || []
-
-    if (results) {
-      enhancedResults = results.map((listing) => {
+    let enhancedResults: SearchResult[] = paginatedListings.map((listing) => {
         let relevanceScore = 0
         let distance: number | undefined
 
@@ -235,36 +298,41 @@ export async function GET(request: NextRequest) {
         }
       })
 
-      // Sort by relevance if that was requested
-      if (query.sortBy === 'relevance' && query.query) {
-        enhancedResults.sort((a, b) => (b._relevance || 0) - (a._relevance || 0))
-      }
+    // Sort by relevance if that was requested
+    if (query.sortBy === 'relevance' && query.query) {
+      enhancedResults.sort((a, b) => (b._relevance || 0) - (a._relevance || 0))
     }
 
     // Log search for analytics
     if (query.query) {
-      supabase
-        .from('search_analytics')
-        .insert({
-          query: query.query,
-          results_count: enhancedResults.length,
-          filters: {
-            category: query.category,
-            location: query.location,
-            price_range: query.minPrice || query.maxPrice ? [query.minPrice, query.maxPrice] : null,
-            condition: query.condition
-          },
-          created_at: new Date().toISOString()
-        })
-        .then(() => {}) // Fire and forget
-        .catch(console.error)
+      const logSearch = async () => {
+        try {
+          await supabase
+            .from('search_analytics')
+            .insert({
+              query: query.query!,
+              results_count: enhancedResults.length,
+              filters: JSON.parse(JSON.stringify({
+                category: query.category,
+                location: query.location,
+                price_range: query.minPrice || query.maxPrice ? [query.minPrice, query.maxPrice] : null,
+                condition: query.condition
+              })),
+              created_at: new Date().toISOString()
+            })
+        } catch (error) {
+          console.error('Failed to log search analytics:', error)
+        }
+      }
+      
+      logSearch() // Fire and forget
     }
 
     const response = NextResponse.json(
       createPaginatedResponse(
         enhancedResults,
         { page: query.page, limit: query.limit },
-        count || 0
+        totalCount
       )
     )
 

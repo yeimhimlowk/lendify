@@ -1,11 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { authenticateRequest, requireAuth } from '@/lib/api/auth'
+import { requireAuth } from '@/lib/api/auth'
 import { handleAPIError, handleAuthError, handleValidationError } from '@/lib/api/errors'
 import { 
   createSuccessResponse, 
   createPaginatedResponse, 
-  extractPagination,
   logAPIRequest,
   getCacheHeaders,
   addSecurityHeaders
@@ -69,7 +68,7 @@ export async function GET(request: NextRequest) {
       .from('listings')
       .select(`
         *,
-        category:categories(id, name, slug, icon),
+        category:categories(*),
         owner:profiles!listings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
       `)
 
@@ -113,18 +112,93 @@ export async function GET(request: NextRequest) {
       dbQuery = dbQuery.ilike('address', `%${query.location}%`)
     }
 
-    // Geographic filtering
+    // Handle geographic search separately since RPC can't be chained
+    let listings: any[] = []
+    
     if (query.latitude && query.longitude) {
       // Using PostGIS ST_DWithin for radius search
       const radiusInMeters = query.radius * 1000 // Convert km to meters
-      dbQuery = dbQuery.rpc('listings_within_radius', {
-        lat: query.latitude,
-        lng: query.longitude,
-        radius_meters: radiusInMeters
+      
+      const { data: nearbyListings, error: rpcError } = await supabase
+        .rpc('listings_within_radius', {
+          lat: query.latitude,
+          lng: query.longitude,
+          radius_meters: radiusInMeters
+        })
+      
+      if (rpcError) {
+        throw new Error(`Location search error: ${rpcError.message}`)
+      }
+      
+      // Get category ID if needed
+      let categoryId: string | null = null
+      if (query.category) {
+        const { data: categoryData } = await supabase
+          .from('categories')
+          .select('id')
+          .eq('slug', query.category)
+          .single()
+        
+        categoryId = categoryData?.id || null
+      }
+      
+      // Filter the nearby listings by other criteria
+      listings = (nearbyListings || []).filter((listing: any) => {
+        let match = listing.status === 'active'
+        
+        if (categoryId) {
+          match = match && listing.category_id === categoryId
+        }
+        
+        if (query.minPrice) {
+          match = match && listing.price_per_day >= query.minPrice
+        }
+        
+        if (query.maxPrice) {
+          match = match && listing.price_per_day <= query.maxPrice
+        }
+        
+        if (query.condition) {
+          match = match && listing.condition === query.condition
+        }
+        
+        if (query.location) {
+          match = match && listing.address?.toLowerCase().includes(query.location.toLowerCase())
+        }
+        
+        return match
       })
+      
+      // Now fetch the full data with relationships for the filtered listings
+      if (listings.length > 0) {
+        const listingIds = listings.map(l => l.id)
+        const { data: fullListings, error: fetchError } = await supabase
+          .from('listings')
+          .select(`
+            *,
+            category:categories(*),
+            owner:profiles!listings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
+          `)
+          .in('id', listingIds)
+        
+        if (fetchError) {
+          throw new Error(`Database error: ${fetchError.message}`)
+        }
+        
+        listings = fullListings || []
+      }
+    } else {
+      // Non-geographic query - proceed normally
+      const { data, error } = await dbQuery
+      
+      if (error) {
+        throw new Error(`Database error: ${error.message}`)
+      }
+      
+      listings = data || []
     }
 
-    // Sorting
+    // Apply sorting
     const sortMapping = {
       'created_at': 'created_at',
       'price_per_day': 'price_per_day', 
@@ -133,30 +207,28 @@ export async function GET(request: NextRequest) {
     }
     
     const sortColumn = sortMapping[query.sortBy] || 'created_at'
-    dbQuery = dbQuery.order(sortColumn, { ascending: query.sortOrder === 'asc' })
+    listings.sort((a, b) => {
+      const aValue = a[sortColumn]
+      const bValue = b[sortColumn]
+      
+      if (aValue < bValue) return query.sortOrder === 'asc' ? -1 : 1
+      if (aValue > bValue) return query.sortOrder === 'asc' ? 1 : -1
+      return 0
+    })
 
-    // Get total count for pagination
-    const { count } = await supabase
-      .from('listings')
-      .select('*', { count: 'exact', head: true })
-      .match(dbQuery as any) // Apply same filters for count
+    // Get total count before pagination
+    const totalCount = listings.length
 
     // Apply pagination
     const offset = (query.page - 1) * query.limit
-    dbQuery = dbQuery.range(offset, offset + query.limit - 1)
-
-    const { data: listings, error } = await dbQuery
-
-    if (error) {
-      throw new Error(`Database error: ${error.message}`)
-    }
+    const paginatedListings = listings.slice(offset, offset + query.limit)
 
     // Create response with cache headers for public listings
     const response = NextResponse.json(
       createPaginatedResponse(
-        listings as ListingWithDetails[],
+        paginatedListings as ListingWithDetails[],
         { page: query.page, limit: query.limit },
-        count || 0
+        totalCount
       )
     )
 
@@ -205,28 +277,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Create listing data
-    const listingData = {
-      ...validatedData,
-      owner_id: user.id,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      // Convert location to PostGIS point format
-      location: `POINT(${validatedData.location.lng} ${validatedData.location.lat})`
-    }
 
     // Remove the plain location object as we've converted it to PostGIS format
-    const { location, ...dataWithoutLocation } = validatedData
+    const { location, availability, ...dataWithoutLocation } = validatedData
     
     const { data: listing, error } = await supabase
       .from('listings')
       .insert({
         ...dataWithoutLocation,
+        availability: availability ? JSON.parse(JSON.stringify(availability)) : {},
         owner_id: user.id,
         location: `POINT(${location.lng} ${location.lat})`
       })
       .select(`
         *,
-        category:categories(id, name, slug, icon),
+        category:categories(*),
         owner:profiles!listings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
       `)
       .single()

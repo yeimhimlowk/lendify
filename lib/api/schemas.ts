@@ -40,8 +40,8 @@ export const createListingSchema = z.object({
     path: z.string()
   })).optional(), // Stores the storage paths for deletion
   tags: z.array(z.string().min(1).max(50)).max(20).optional(),
-  availability: z.record(z.boolean()).optional(),
-  status: listingStatusSchema.default('draft')
+  availability: z.record(z.string(), z.boolean()).optional(),
+  status: listingStatusSchema.optional().default('draft')
 })
 
 export const updateListingSchema = createListingSchema.partial()
@@ -260,6 +260,9 @@ export type ListingQuery = z.infer<typeof listingQuerySchema>
 export type CreateBookingInput = z.infer<typeof createBookingSchema>
 export type UpdateBookingInput = z.infer<typeof updateBookingSchema>
 export type BookingQuery = z.infer<typeof bookingQuerySchema>
+export type CreateCategoryInput = z.infer<typeof createCategorySchema>
+export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>
+export type CategoryQuery = z.infer<typeof categoryQuerySchema>
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
 export type SearchQuery = z.infer<typeof searchQuerySchema>
 export type SearchSuggestions = z.infer<typeof searchSuggestionsSchema>

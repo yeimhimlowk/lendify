@@ -6,10 +6,10 @@ import Image from 'next/image'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Loader2, X, AlertCircle } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import type { CreateListingInput } from '@/lib/api/schemas'
-import { uploadImage, deleteImage, compressImage, type UploadProgress } from '@/lib/upload/image-upload'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { uploadImage, deleteImage, compressImage, type UploadProgress, type UploadResult } from '@/lib/upload/image-upload'
+import { Alert } from '@/components/ui/alert'
 
 interface PhotoData {
   url: string
@@ -58,6 +58,25 @@ export default function PhotosStep() {
   const handleFiles = async (files: File[]) => {
     // Clear previous errors
     setUploadErrors([])
+    
+    // Check authentication first
+    console.log('Checking authentication before upload...')
+    try {
+      const { createClient } = await import('@/lib/supabase/client')
+      const supabase = createClient()
+      const { data: { user }, error: authError } = await supabase.auth.getUser()
+      
+      if (authError || !user) {
+        console.error('Authentication check failed:', authError)
+        setUploadErrors(['You must be logged in to upload photos. Please sign in and try again.'])
+        return
+      }
+      console.log('User authenticated:', user.id)
+    } catch (error) {
+      console.error('Failed to check authentication:', error)
+      setUploadErrors(['Failed to verify authentication. Please refresh the page and try again.'])
+      return
+    }
     
     // Validate file count
     const validFiles = files.filter(file => {
@@ -109,11 +128,22 @@ export default function PhotosStep() {
         }
 
         // Simulate progress updates (since Supabase doesn't provide progress)
-        const progressInterval = setInterval(() => {
+        let progressInterval: NodeJS.Timeout | null = null
+        let uploadComplete = false
+        
+        progressInterval = setInterval(() => {
           setUploadProgress(prev => {
             const current = prev[fileId]?.progress || 0
+            // If upload is complete, immediately set to 100%
+            if (uploadComplete) {
+              if (progressInterval) clearInterval(progressInterval)
+              return {
+                ...prev,
+                [fileId]: { ...prev[fileId], progress: 100 }
+              }
+            }
+            // Otherwise, increment progress up to 90%
             if (current >= 90) {
-              clearInterval(progressInterval)
               return prev
             }
             return {
@@ -123,39 +153,68 @@ export default function PhotosStep() {
           })
         }, 100)
 
-        // Upload to Supabase
-        const result = await uploadImage(fileToUpload)
+        // Upload to Supabase with timeout
+        const uploadPromise = uploadImage(fileToUpload)
+        const timeoutPromise = new Promise<UploadResult>((_, reject) => 
+          setTimeout(() => reject(new Error('Upload timeout')), 30000) // 30 second timeout
+        )
+        
+        try {
+          console.log(`Racing upload promise for ${file.name}...`)
+          const result = await Promise.race([uploadPromise, timeoutPromise])
+          uploadComplete = true
+          console.log(`Upload completed for ${file.name}:`, result)
+          
+          if (progressInterval) {
+            clearInterval(progressInterval)
+          }
 
-        clearInterval(progressInterval)
-
-        if (result.error) {
-          setUploadErrors(prev => [...prev, `${file.name}: ${result.error}`])
-          setUploadProgress(prev => {
-            const { [fileId]: _, ...rest } = prev
-            return rest
-          })
-        } else {
-          // Update progress to 100%
-          setUploadProgress(prev => ({
-            ...prev,
-            [fileId]: { ...prev[fileId], progress: 100 }
-          }))
-
-          // Add to photos array
-          setTimeout(() => {
-            setValue('photos', [...photos, result.url])
-            setValue('photoData', [...photoData, { url: result.url, path: result.path }])
-            
-            // Remove from progress
+          if (result.error) {
+            console.error(`Upload error for ${file.name}:`, result.error)
+            setUploadErrors(prev => [...prev, `${file.name}: ${result.error}`])
             setUploadProgress(prev => {
               const { [fileId]: _, ...rest } = prev
               return rest
             })
-          }, 500)
+          } else {
+            // Update progress to 100%
+            setUploadProgress(prev => ({
+              ...prev,
+              [fileId]: { ...prev[fileId], progress: 100 }
+            }))
+
+            // Add to photos array
+            setTimeout(() => {
+              setValue('photos', [...photos, result.url])
+              setValue('photoData', [...photoData, { url: result.url, path: result.path }])
+              
+              // Remove from progress
+              setUploadProgress(prev => {
+                const { [fileId]: _, ...rest } = prev
+                return rest
+              })
+            }, 500)
+          }
+        } catch (error) {
+          // Always clear the interval on error
+          if (progressInterval) {
+            clearInterval(progressInterval)
+          }
+          
+          console.error('Upload error:', error)
+          const errorMessage = error instanceof Error && error.message === 'Upload timeout' 
+            ? `${file.name}: Upload timed out. Please try again.`
+            : `${file.name}: Upload failed`
+          
+          setUploadErrors(prev => [...prev, errorMessage])
+          setUploadProgress(prev => {
+            const { [fileId]: _, ...rest } = prev
+            return rest
+          })
         }
       } catch (error) {
-        console.error('Upload error:', error)
-        setUploadErrors(prev => [...prev, `${file.name}: Upload failed`])
+        console.error('Upload process error:', error)
+        setUploadErrors(prev => [...prev, `${file.name}: Failed to process upload`])
         setUploadProgress(prev => {
           const { [fileId]: _, ...rest } = prev
           return rest
@@ -255,15 +314,12 @@ export default function PhotosStep() {
 
       {/* Upload Errors */}
       {uploadErrors.length > 0 && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertDescription>
-            <ul className="list-disc list-inside">
-              {uploadErrors.map((error, index) => (
-                <li key={index}>{error}</li>
-              ))}
-            </ul>
-          </AlertDescription>
+        <Alert variant="error">
+          <ul className="list-disc list-inside">
+            {uploadErrors.map((error, index) => (
+              <li key={index}>{error}</li>
+            ))}
+          </ul>
         </Alert>
       )}
 

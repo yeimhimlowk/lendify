@@ -17,7 +17,7 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'im
 
 export async function uploadImage(
   file: File,
-  onProgress?: (progress: number) => void
+  _onProgress?: (progress: number) => void
 ): Promise<UploadResult> {
   // Validate file
   if (!ALLOWED_TYPES.includes(file.type)) {
@@ -44,6 +44,9 @@ export async function uploadImage(
   const filePath = `listings/${fileName}`
 
   try {
+    // Log upload attempt
+    console.log(`Attempting to upload file: ${fileName}, size: ${file.size} bytes`)
+    
     // Upload file with progress tracking
     const { data, error } = await supabase.storage
       .from('listing-photos')
@@ -53,18 +56,49 @@ export async function uploadImage(
       })
 
     if (error) {
-      console.error('Upload error:', error)
+      console.error('Supabase storage error:', {
+        error,
+        message: error.message,
+        name: error.name,
+        cause: error.cause
+      })
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to upload image'
+      if (error.message?.includes('row level security')) {
+        errorMessage = 'Authentication error. Please sign in and try again.'
+      } else if (error.message?.includes('bucket')) {
+        errorMessage = 'Storage configuration error. Please contact support.'
+      } else if (error.message?.includes('Payload too large')) {
+        errorMessage = 'File too large. Please use a smaller image.'
+      } else if (error.message) {
+        errorMessage = error.message
+      }
+      
       return {
         url: '',
         path: '',
-        error: error.message || 'Failed to upload image'
+        error: errorMessage
       }
     }
+
+    if (!data?.path) {
+      console.error('Upload succeeded but no path returned')
+      return {
+        url: '',
+        path: '',
+        error: 'Upload succeeded but no file path was returned'
+      }
+    }
+
+    console.log(`Upload successful: ${data.path}`)
 
     // Get public URL
     const { data: { publicUrl } } = supabase.storage
       .from('listing-photos')
       .getPublicUrl(data.path)
+
+    console.log(`Public URL generated: ${publicUrl}`)
 
     return {
       url: publicUrl,
@@ -72,10 +106,19 @@ export async function uploadImage(
     }
   } catch (error) {
     console.error('Upload exception:', error)
+    
+    // Check for specific error types
+    let errorMessage = 'An unexpected error occurred during upload'
+    if (error instanceof TypeError && error.message.includes('fetch')) {
+      errorMessage = 'Network error. Please check your connection and try again.'
+    } else if (error instanceof Error) {
+      errorMessage = error.message
+    }
+    
     return {
       url: '',
       path: '',
-      error: 'An unexpected error occurred during upload'
+      error: errorMessage
     }
   }
 }

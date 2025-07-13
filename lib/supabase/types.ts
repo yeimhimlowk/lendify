@@ -102,6 +102,47 @@ export type Database = {
           },
         ]
       }
+      ai_usage_logs: {
+        Row: {
+          action: string
+          content_type: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          success: boolean | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          content_type?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          success?: boolean | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          content_type?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          success?: boolean | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       categories: {
         Row: {
           created_at: string | null
@@ -434,12 +475,82 @@ export type Database = {
           },
         ]
       }
+      search_analytics: {
+        Row: {
+          created_at: string
+          filters: Json | null
+          id: string
+          query: string
+          results_count: number | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          filters?: Json | null
+          id?: string
+          query: string
+          results_count?: number | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          filters?: Json | null
+          id?: string
+          query?: string
+          results_count?: number | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "search_analytics_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      listings_within_radius: {
+        Args: {
+          lat: number
+          lng: number
+          radius_meters: number
+        }
+        Returns: {
+          id: string
+          title: string
+          description: string | null
+          price_per_day: number
+          price_per_week: number | null
+          price_per_month: number | null
+          deposit_amount: number | null
+          condition: string | null
+          address: string | null
+          photos: string[] | null
+          tags: string[] | null
+          availability: Json | null
+          status: string | null
+          category_id: string | null
+          owner_id: string
+          ai_generated_title: string | null
+          ai_generated_description: string | null
+          ai_price_suggestion: number | null
+          created_at: string | null
+          updated_at: string | null
+          location: unknown | null
+        }[]
+      }
+      increment_listing_views: {
+        Args: {
+          listing_id: string
+        }
+        Returns: void
+      }
     }
     Enums: {
       [_ in never]: never

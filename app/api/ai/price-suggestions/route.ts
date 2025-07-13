@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     )
 
     // Log pricing analysis for analytics
-    await supabase
+    const { error: logError } = await supabase
       .from('ai_usage_logs')
       .insert({
         user_id: user.id,
@@ -96,7 +96,10 @@ export async function POST(request: NextRequest) {
         success: true,
         created_at: new Date().toISOString()
       })
-      .catch(console.error)
+    
+    if (logError) {
+      console.error('Failed to log AI price suggestion:', logError)
+    }
 
     logAPIRequest(request, 'AI_PRICE_SUGGESTIONS_SUCCESS', user.id)
 

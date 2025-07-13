@@ -44,6 +44,7 @@ export default function DetailsStep() {
   const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       e.preventDefault()
+      e.stopPropagation() // Prevent event bubbling to form
       addTag(tagInput)
     }
   }

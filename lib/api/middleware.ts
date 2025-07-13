@@ -30,8 +30,7 @@ export function rateLimit(config: RateLimitConfig) {
       const now = Date.now()
       
       // Create a unique key for the client (IP + endpoint)
-      const clientIP = request.ip || 
-                      request.headers.get('x-forwarded-for') || 
+      const clientIP = request.headers.get('x-forwarded-for') || 
                       request.headers.get('x-real-ip') || 
                       'unknown'
       const endpoint = new URL(request.url).pathname
@@ -89,7 +88,7 @@ export function rateLimit(config: RateLimitConfig) {
  * Security headers middleware
  */
 export function securityHeaders() {
-  return async (request: NextRequest): Promise<NextResponse | null> => {
+  return async (_request: NextRequest): Promise<NextResponse | null> => {
     // This middleware doesn't block requests, just adds headers to responses
     return null
   }
@@ -100,12 +99,10 @@ export function securityHeaders() {
  */
 export function requestLogger() {
   return async (request: NextRequest): Promise<NextResponse | null> => {
-    const start = Date.now()
     const method = request.method
     const url = request.url
     const userAgent = request.headers.get('user-agent') || 'unknown'
-    const ip = request.ip || 
-              request.headers.get('x-forwarded-for') || 
+    const ip = request.headers.get('x-forwarded-for') || 
               request.headers.get('x-real-ip') || 
               'unknown'
 
@@ -155,7 +152,7 @@ export function sanitizeInput() {
  * Authentication requirement middleware
  */
 export function requireAuthentication() {
-  return async (request: NextRequest): Promise<NextResponse | null> => {
+  return async (_request: NextRequest): Promise<NextResponse | null> => {
     try {
       const supabase = await createServerSupabaseClient()
       const { data: { user }, error } = await supabase.auth.getUser()
@@ -171,7 +168,7 @@ export function requireAuthentication() {
       }
       
       return null // Allow request
-    } catch (error) {
+    } catch (_error) {
       return handleInternalError('Authentication check failed')
     }
   }
@@ -271,11 +268,21 @@ export function apiVersioning(supportedVersions: string[] = ['v1']) {
 
 /**
  * Compose multiple middleware functions
+ * Accepts both middleware functions and factory functions that return middleware
  */
-export function composeMiddleware(...middlewares: Array<() => (request: NextRequest) => Promise<NextResponse | null>>) {
+type MiddlewareFunction = (request: NextRequest) => Promise<NextResponse | null>
+type MiddlewareFactory = () => MiddlewareFunction
+type MiddlewareInput = MiddlewareFunction | MiddlewareFactory
+
+export function composeMiddleware(...middlewares: MiddlewareInput[]) {
   return async (request: NextRequest): Promise<NextResponse | null> => {
     for (const middleware of middlewares) {
-      const result = await middleware()(request)
+      // Check if it's a factory function or a direct middleware function
+      const middlewareFunc = typeof middleware === 'function' && middleware.length === 0
+        ? (middleware as MiddlewareFactory)()
+        : middleware as MiddlewareFunction
+      
+      const result = await middlewareFunc(request)
       if (result) {
         return result // Middleware blocked the request
       }

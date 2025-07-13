@@ -2,8 +2,7 @@
 
 import { useFormContext } from 'react-hook-form'
 import { Card } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Label } from '@/components/ui/label'
+import Image from 'next/image'
 import type { CreateListingInput } from '@/lib/api/schemas'
 
 // Mock categories - should match BasicInfoStep
@@ -184,7 +183,7 @@ export default function ReviewStep() {
         <ul className="text-sm text-green-700 space-y-1">
           <li>• Your listing will be live immediately after creation</li>
           <li>• You can edit or pause your listing anytime from your dashboard</li>
-          <li>• We'll notify you when someone is interested in renting</li>
+          <li>• We&apos;ll notify you when someone is interested in renting</li>
           <li>• Remember to keep your availability calendar updated</li>
         </ul>
       </div>

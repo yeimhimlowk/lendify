@@ -73,7 +73,7 @@ export async function GET(
       .from('listings')
       .select(`
         *,
-        category:categories(id, name, slug, icon)
+        category:categories(*)
       `)
       .eq('owner_id', validUserId)
 
@@ -124,7 +124,10 @@ export async function GET(
     }
 
     // Enhance listings with booking counts for owner
-    let enhancedListings: ListingWithDetails[] = listings || []
+    let enhancedListings: ListingWithDetails[] = (listings || []).map(listing => ({
+      ...listing,
+      category: listing.category || undefined
+    }))
 
     if (isOwner && listings) {
       enhancedListings = await Promise.all(
@@ -142,6 +145,7 @@ export async function GET(
 
           return {
             ...listing,
+            category: listing.category || undefined,
             _count: {
               bookings: totalBookings,
               active_bookings: activeBookings

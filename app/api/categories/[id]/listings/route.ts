@@ -63,7 +63,7 @@ export async function GET(
       .from('listings')
       .select(`
         *,
-        category:categories(id, name, slug, icon),
+        category:categories(*),
         owner:profiles!listings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
       `)
       .eq('category_id', categoryId)
@@ -95,7 +95,9 @@ export async function GET(
       query = query.ilike('address', `%${location}%`)
     }
 
-    // Geographic filtering
+    // Geographic filtering - we'll handle this separately since RPC functions can't be chained
+    let listings: any[] = []
+    
     if (latitude && longitude) {
       const lat = parseFloat(latitude)
       const lng = parseFloat(longitude)
@@ -103,45 +105,73 @@ export async function GET(
 
       if (!isNaN(lat) && !isNaN(lng) && !isNaN(radiusKm)) {
         const radiusInMeters = radiusKm * 1000
-        query = query.rpc('listings_within_radius', {
-          lat,
-          lng,
-          radius_meters: radiusInMeters
+        
+        // Use RPC function to get listings within radius
+        const { data: nearbyListings, error: rpcError } = await supabase
+          .rpc('listings_within_radius', {
+            lat,
+            lng,
+            radius_meters: radiusInMeters
+          })
+        
+        if (rpcError) {
+          throw new Error(`Location search error: ${rpcError.message}`)
+        }
+        
+        // Filter the nearby listings by category and other criteria
+        listings = (nearbyListings || []).filter((listing: any) => {
+          let match = listing.category_id === categoryId && listing.status === 'active'
+          
+          if (minPrice) {
+            const minPriceNum = parseFloat(minPrice)
+            if (!isNaN(minPriceNum)) {
+              match = match && listing.price_per_day >= minPriceNum
+            }
+          }
+          
+          if (maxPrice) {
+            const maxPriceNum = parseFloat(maxPrice)
+            if (!isNaN(maxPriceNum)) {
+              match = match && listing.price_per_day <= maxPriceNum
+            }
+          }
+          
+          if (condition && ['new', 'like_new', 'good', 'fair', 'poor'].includes(condition)) {
+            match = match && listing.condition === condition
+          }
+          
+          return match
         })
+        
+        // Now fetch the full data with relationships for the filtered listings
+        if (listings.length > 0) {
+          const listingIds = listings.map(l => l.id)
+          const { data: fullListings, error: fetchError } = await supabase
+            .from('listings')
+            .select(`
+              *,
+              category:categories(*),
+              owner:profiles!listings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
+            `)
+            .in('id', listingIds)
+          
+          if (fetchError) {
+            throw new Error(`Database error: ${fetchError.message}`)
+          }
+          
+          listings = fullListings || []
+        }
       }
-    }
-
-    // Get total count for pagination
-    const countQuery = supabase
-      .from('listings')
-      .select('*', { count: 'exact', head: true })
-      .eq('category_id', categoryId)
-      .eq('status', 'active')
-
-    // Apply same filters to count query
-    if (minPrice) {
-      const minPriceNum = parseFloat(minPrice)
-      if (!isNaN(minPriceNum)) {
-        countQuery.gte('price_per_day', minPriceNum)
+    } else {
+      // Non-geographic query - proceed with the existing query
+      const { data, error } = await query
+      
+      if (error) {
+        throw new Error(`Database error: ${error.message}`)
       }
+      
+      listings = data || []
     }
-    
-    if (maxPrice) {
-      const maxPriceNum = parseFloat(maxPrice)
-      if (!isNaN(maxPriceNum)) {
-        countQuery.lte('price_per_day', maxPriceNum)
-      }
-    }
-    
-    if (condition && ['new', 'like_new', 'good', 'fair', 'poor'].includes(condition)) {
-      countQuery.eq('condition', condition)
-    }
-    
-    if (location && !latitude && !longitude) {
-      countQuery.ilike('address', `%${location}%`)
-    }
-
-    const { count } = await countQuery
 
     // Apply sorting
     const sortMapping = {
@@ -152,22 +182,27 @@ export async function GET(
     }
 
     const sortColumn = sortMapping[sort.sortBy as keyof typeof sortMapping] || 'created_at'
-    query = query.order(sortColumn, { ascending: sort.sortOrder === 'asc' })
+    listings.sort((a, b) => {
+      const aValue = a[sortColumn]
+      const bValue = b[sortColumn]
+      
+      if (aValue < bValue) return sort.sortOrder === 'asc' ? -1 : 1
+      if (aValue > bValue) return sort.sortOrder === 'asc' ? 1 : -1
+      return 0
+    })
+
+    // Get total count before pagination
+    const totalCount = listings.length
 
     // Apply pagination
-    query = query.range(pagination.offset, pagination.offset + pagination.limit - 1)
-
-    const { data: listings, error } = await query
-
-    if (error) {
-      throw new Error(`Database error: ${error.message}`)
-    }
+    const offset = pagination.offset || 0
+    const paginatedListings = listings.slice(offset, offset + pagination.limit)
 
     // Create response with category context
     const responseData = createPaginatedResponse(
-      listings as ListingWithDetails[],
+      paginatedListings as ListingWithDetails[],
       { page: pagination.page, limit: pagination.limit },
-      count || 0
+      totalCount
     )
 
     // Add category information to the response

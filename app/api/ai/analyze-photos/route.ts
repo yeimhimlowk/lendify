@@ -15,6 +15,7 @@ import {
   analyzePhotosSchema,
   type AnalyzePhotosInput 
 } from '@/lib/api/schemas'
+import type { Json } from '@/lib/supabase/types'
 
 interface PhotoAnalysisResult {
   description?: string
@@ -89,7 +90,7 @@ export async function POST(request: NextRequest) {
             .from('ai_analysis_cache')
             .upsert({
               listing_id: validatedData.listing_id,
-              claude_content: analysisResult,
+              claude_content: analysisResult as unknown as Json,
               created_at: new Date().toISOString()
             }, {
               onConflict: 'listing_id'

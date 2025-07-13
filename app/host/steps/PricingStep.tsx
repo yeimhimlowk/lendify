@@ -3,8 +3,7 @@
 import { useFormContext } from 'react-hook-form'
 import { useState, useEffect } from 'react'
 import { FormInput } from '@/components/ui/form-input'
-import { Calendar } from '@/components/ui/calendar'
-import { Card } from '@/components/ui/card'
+import { AvailabilityCalendar } from '@/components/listings/AvailabilityCalendar'
 import { Button } from '@/components/ui/button'
 import { Alert } from '@/components/ui/alert'
 import type { CreateListingInput } from '@/lib/api/schemas'
@@ -145,7 +144,7 @@ export default function PricingStep() {
 
         {/* Pricing Error */}
         {pricingError && (
-          <Alert type="error" className="mb-3">
+          <Alert className="mb-3 border-red-200 bg-red-50 text-red-800">
             {pricingError}
           </Alert>
         )}
@@ -320,46 +319,35 @@ export default function PricingStep() {
 
       {/* Availability Calendar */}
       <div className="space-y-4">
-        <h3 className="text-lg font-medium text-gray-900">Availability</h3>
-        <p className="text-sm text-gray-600">
-          Click on dates to mark them as unavailable
-        </p>
-        
-        <Card className="p-4">
-          <Calendar
-            mode="multiple"
-            selected={blockedDates}
-            onSelect={(dates) => {
-              if (dates) {
-                setBlockedDates(dates as Date[])
-                // Convert to availability record
-                const availability: Record<string, boolean> = {}
-                dates.forEach(date => {
-                  availability[date.toISOString().split('T')[0]] = false
-                })
-                setValue('availability', availability)
+        <AvailabilityCalendar
+          blockedDates={blockedDates}
+          onDateSelect={(date) => {
+            if (date) {
+              // Toggle date in blockedDates
+              const dateStr = date.toDateString()
+              const isBlocked = blockedDates.some(d => d.toDateString() === dateStr)
+              
+              let newBlockedDates: Date[]
+              if (isBlocked) {
+                // Remove from blocked dates
+                newBlockedDates = blockedDates.filter(d => d.toDateString() !== dateStr)
+              } else {
+                // Add to blocked dates
+                newBlockedDates = [...blockedDates, date]
               }
-            }}
-            disabled={(date) => date < new Date()}
-            className="rounded-md border-0"
-          />
-        </Card>
-
-        {blockedDates.length > 0 && (
-          <div className="text-sm text-gray-600">
-            <p className="font-medium mb-2">Blocked dates:</p>
-            <div className="flex flex-wrap gap-2">
-              {blockedDates.map((date, index) => (
-                <span
-                  key={index}
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800"
-                >
-                  {date.toLocaleDateString()}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
+              
+              setBlockedDates(newBlockedDates)
+              
+              // Convert to availability record
+              const availability: Record<string, boolean> = {}
+              newBlockedDates.forEach(d => {
+                availability[d.toISOString().split('T')[0]] = false
+              })
+              setValue('availability', availability)
+            }
+          }}
+          className="mt-4"
+        />
       </div>
 
       {/* Pricing Tips */}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { Suspense, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
@@ -32,7 +32,7 @@ const signupSchema = z.object({
 
 type SignupFormData = z.infer<typeof signupSchema>
 
-export default function SignupPage() {
+function SignupForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -306,5 +306,13 @@ export default function SignupPage() {
         </div>
       </main>
     </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>}>
+      <SignupForm />
+    </Suspense>
   )
 }

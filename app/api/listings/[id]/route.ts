@@ -22,10 +22,21 @@ import {
 import type { Database } from '@/lib/supabase/types'
 
 type Listing = Database['public']['Tables']['listings']['Row']
+type BookingPreview = {
+  id: string
+  start_date: string
+  end_date: string
+  status: string | null
+  renter?: {
+    id: string
+    full_name: string | null
+    avatar_url: string | null
+  }
+}
 type ListingWithDetails = Listing & {
   category?: Database['public']['Tables']['categories']['Row']
   owner?: Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'avatar_url' | 'rating' | 'verified'>
-  bookings?: Database['public']['Tables']['bookings']['Row'][]
+  bookings?: BookingPreview[]
   _count?: {
     bookings: number
     reviews: number
@@ -53,7 +64,7 @@ export async function GET(
       .from('listings')
       .select(`
         *,
-        category:categories(id, name, slug, icon),
+        category:categories(*),
         owner:profiles!listings_owner_id_fkey(id, full_name, avatar_url, rating, verified),
         bookings!bookings_listing_id_fkey(
           id, 
@@ -81,6 +92,8 @@ export async function GET(
     // Add booking count and other stats
     const listingWithStats: ListingWithDetails = {
       ...listing,
+      category: listing.category || undefined,
+      owner: listing.owner || undefined,
       _count: {
         bookings: listing.bookings?.length || 0,
         reviews: 0 // TODO: Add reviews count when implemented
@@ -97,21 +110,27 @@ export async function GET(
 
     // Track view analytics (fire and forget)
     if (user && user.id !== listing.owner_id) {
-      supabase
-        .from('listing_analytics')
-        .upsert({
-          listing_id: listingId,
-          date: new Date().toISOString().split('T')[0],
-          views: 1
-        }, {
-          onConflict: 'listing_id,date',
-          ignoreDuplicates: false
-        })
-        .then(() => {
+      const trackView = async () => {
+        try {
+          await supabase
+            .from('listing_analytics')
+            .upsert({
+              listing_id: listingId,
+              date: new Date().toISOString().split('T')[0],
+              views: 1
+            }, {
+              onConflict: 'listing_id,date',
+              ignoreDuplicates: false
+            })
+          
           // Update views count
-          supabase.rpc('increment_listing_views', { listing_id: listingId })
-        })
-        .catch(console.error)
+          await supabase.rpc('increment_listing_views', { listing_id: listingId })
+        } catch (error) {
+          console.error('Failed to track listing view:', error)
+        }
+      }
+      
+      trackView() // Fire and forget
     }
 
     const response = NextResponse.json(
@@ -210,7 +229,7 @@ export async function PUT(
       .eq('id', listingId)
       .select(`
         *,
-        category:categories(id, name, slug, icon),
+        category:categories(*),
         owner:profiles!listings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
       `)
       .single()

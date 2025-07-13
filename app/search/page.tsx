@@ -6,7 +6,6 @@ import SearchResults from '@/components/search/SearchResults'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import { useSearch } from '@/hooks/useSearch'
-import { Search } from 'lucide-react'
 
 // Categories fetched from API or config
 const categories = [

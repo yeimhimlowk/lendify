@@ -6,7 +6,6 @@ import { FormInput } from '@/components/ui/form-input'
 import { Label } from '@/components/ui/label'
 import { SimpleSelect } from '@/components/ui/simple-select'
 import { Button } from '@/components/ui/button'
-import { LoadingButton } from '@/components/ui/loading-button'
 import { Alert } from '@/components/ui/alert'
 import type { CreateListingInput } from '@/lib/api/schemas'
 
@@ -35,7 +34,6 @@ export default function BasicInfoStep() {
   const title = watch('title')
   const description = watch('description')
   const categoryId = watch('category_id')
-  const condition = watch('condition')
 
   useEffect(() => {
     setTitleLength(title?.length || 0)
@@ -67,7 +65,7 @@ export default function BasicInfoStep() {
           type: 'description',
           context: {
             category: selectedCategory?.name,
-            condition: condition || 'good',
+            condition: 'good',
             existing_content: title
           },
           tone: 'friendly',
@@ -164,7 +162,7 @@ export default function BasicInfoStep() {
           
           {/* AI Error Alert */}
           {aiError && (
-            <Alert type="error" className="mt-2">
+            <Alert className="mt-2 border-red-200 bg-red-50 text-red-800">
               {aiError}
             </Alert>
           )}
@@ -208,22 +206,6 @@ export default function BasicInfoStep() {
           </SimpleSelect>
         </div>
 
-        {/* Condition */}
-        <div>
-          <SimpleSelect
-            id="condition"
-            label="Condition"
-            {...register('condition')}
-            error={errors.condition?.message}
-          >
-            <option value="">Select condition</option>
-            <option value="new">New</option>
-            <option value="like_new">Like New</option>
-            <option value="good">Good</option>
-            <option value="fair">Fair</option>
-            <option value="poor">Poor</option>
-          </SimpleSelect>
-        </div>
       </div>
 
       {/* Tips */}

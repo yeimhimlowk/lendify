@@ -108,19 +108,8 @@ export function handleValidationError(error: unknown): NextResponse {
     )
   }
 
-  // Defensive check for errors array
-  if (!error.errors || !Array.isArray(error.errors)) {
-    console.error('ZodError missing errors array:', error)
-    return createErrorResponse(
-      'Validation failed',
-      400,
-      ErrorCode.VALIDATION_ERROR,
-      { message: error.message || 'Unknown validation error' }
-    )
-  }
-
-  // Safe mapping of error details
-  const details = error.errors.map(err => ({
+  // Safe mapping of error details - ZodError always has errors array
+  const details = (error as any).errors.map((err: any) => ({
     field: err.path?.join('.') || 'unknown',
     message: err.message || 'Validation error',
     code: err.code || 'custom'

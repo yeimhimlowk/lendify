@@ -7,17 +7,6 @@ import {
   getCacheHeaders,
   addSecurityHeaders
 } from '@/lib/api/utils'
-import type { Database } from '@/lib/supabase/types'
-
-type ListingWithDetails = Database['public']['Tables']['listings']['Row'] & {
-  category?: Database['public']['Tables']['categories']['Row']
-  owner?: Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'avatar_url' | 'rating' | 'verified'>
-  _stats?: {
-    bookings_count: number
-    avg_rating: number
-    view_count: number
-  }
-}
 
 /**
  * GET /api/listings/featured - Get featured listings
@@ -44,7 +33,7 @@ export async function GET(request: NextRequest) {
       .from('listings')
       .select(`
         *,
-        category:categories(id, name, slug, icon),
+        category:categories(*),
         owner:profiles!listings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
       `)
       .eq('status', 'active')
