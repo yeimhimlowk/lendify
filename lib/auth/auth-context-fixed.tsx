@@ -21,7 +21,6 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>
   signInWithGitHub: () => Promise<void>
   resendVerificationEmail: () => Promise<void>
-  validateSession: () => Promise<boolean>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -49,29 +48,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   
   const supabase = supabaseClientRef.current
 
-  // Enhanced fetchProfile function with retry logic and proper error handling
-  const fetchProfile = async (userId: string, retryCount = 0): Promise<Tables<'profiles'> | null> => {
+  // Stable fetchProfile function - not recreated on every render
+  const fetchProfile = async (userId: string) => {
     if (!supabase) {
       console.error('fetchProfile: Supabase client not initialized')
       return null
     }
     
-    console.log('fetchProfile: Starting profile fetch for user:', userId, 'retry:', retryCount)
-    
+    console.log('fetchProfile: Starting profile fetch for user:', userId)
     try {
-      // First, validate the session is still valid
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-      
-      if (sessionError || !session) {
-        console.warn('fetchProfile: Invalid session during profile fetch:', sessionError)
-        // Clear potentially stale auth state
-        await cleanupAuthTokens()
-        setUser(null)
-        setProfile(null)
-        return null
-      }
-      
-      // Fetch profile with timeout and proper headers
       const { data, error } = await Promise.race([
         supabase
           .from('profiles')
@@ -79,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           .eq('id', userId)
           .single(),
         new Promise<any>((_, reject) => 
-          setTimeout(() => reject(new Error('Profile fetch timeout after 8 seconds')), 8000)
+          setTimeout(() => reject(new Error('Profile fetch timeout after 10 seconds')), 10000)
         )
       ])
 
@@ -95,42 +80,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
 
       if (error) {
-        // Handle specific error types
-        if (error.code === 'PGRST301' || error.message.includes('406') || error.message.includes('Not Acceptable')) {
-          console.warn('fetchProfile: Received 406/PGRST301 error, attempting session refresh')
-          
-          if (retryCount < 2) {
-            // Try to refresh the session and retry
-            const { error: refreshError } = await supabase.auth.refreshSession()
-            if (!refreshError) {
-              return fetchProfile(userId, retryCount + 1)
-            }
-          }
-          
-          // If refresh fails or max retries reached, clear auth state
-          console.error('fetchProfile: Failed to resolve 406 error after retries')
-          await cleanupAuthTokens()
-          setUser(null)
-          setProfile(null)
-          return null
-        }
-        
-        // Handle authentication errors
-        if (error.code === '42501' || error.message.includes('permission')) {
-          console.error('fetchProfile: Authentication/permission error:', error)
-          await cleanupAuthTokens()
-          setUser(null)
-          setProfile(null)
-          return null
-        }
-        
         console.error('fetchProfile: Supabase error:', error)
         throw error
-      }
-      
-      if (!data) {
-        console.warn('fetchProfile: No profile data returned for user:', userId)
-        return null
       }
       
       setProfile(data)
@@ -141,64 +92,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         error: err,
         errorType: err?.constructor?.name,
         errorMessage: err instanceof Error ? err.message : 'Unknown error',
-        userId,
-        retryCount
+        userId
       })
-      
-      // Handle timeout or network errors with retry
-      if (err instanceof Error && err.message.includes('timeout') && retryCount < 1) {
-        console.log('fetchProfile: Retrying after timeout...')
-        return fetchProfile(userId, retryCount + 1)
-      }
-      
       setProfile(null)
       return null
     }
   }
 
-  // Function to clean up authentication tokens and state
-  const cleanupAuthTokens = async () => {
-    try {
-      console.log('cleanupAuthTokens: Starting token cleanup')
-      
-      // Clear Supabase session
-      if (supabase) {
-        await supabase.auth.signOut({ scope: 'local' })
-      }
-      
-      // Clear localStorage items
-      if (typeof window !== 'undefined') {
-        const keysToRemove = [
-          'lendify-auth-token',
-          'sb-' + process.env.NEXT_PUBLIC_SUPABASE_URL?.split('//')[1]?.split('.')[0] + '-auth-token',
-          'supabase.auth.token'
-        ]
-        
-        keysToRemove.forEach(key => {
-          try {
-            localStorage.removeItem(key)
-            sessionStorage.removeItem(key)
-          } catch (e) {
-            console.warn('cleanupAuthTokens: Failed to remove key:', key, e)
-          }
-        })
-        
-        // Clear all Supabase-related items
-        for (let i = localStorage.length - 1; i >= 0; i--) {
-          const key = localStorage.key(i)
-          if (key && (key.includes('supabase') || key.includes('lendify-auth'))) {
-            localStorage.removeItem(key)
-          }
-        }
-      }
-      
-      console.log('cleanupAuthTokens: Token cleanup completed')
-    } catch (err) {
-      console.error('cleanupAuthTokens: Error during cleanup:', err)
-    }
-  }
-
-  // Initialize auth state with enhanced error handling and recovery
+  // Initialize auth state - simplified with no circular dependencies
   useEffect(() => {
     if (!supabase) {
       setError('Failed to initialize authentication service')
@@ -211,13 +112,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const initAuth = async () => {
       console.log('initAuth: Starting auth initialization')
       try {
-        setError(null) // Clear any previous errors
         console.log('initAuth: Getting session from Supabase')
         
         const { data: { session }, error: sessionError } = await Promise.race([
           supabase.auth.getSession(),
           new Promise<any>((_, reject) => 
-            setTimeout(() => reject(new Error('Session fetch timeout after 12 seconds')), 12000)
+            setTimeout(() => reject(new Error('Session fetch timeout after 15 seconds')), 15000)
           )
         ])
         
@@ -233,37 +133,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
         
         if (sessionError) {
-          // Handle specific session errors
-          if (sessionError.message.includes('refresh_token_not_found') || 
-              sessionError.message.includes('Invalid Refresh Token')) {
-            console.log('initAuth: Invalid refresh token detected, cleaning up')
-            await cleanupAuthTokens()
-            setUser(null)
-            setProfile(null)
-            setIsEmailVerified(false)
-            // Don't throw here, just continue with no session
-          } else {
-            console.error('initAuth: Session error:', sessionError)
-            throw sessionError
-          }
-        } else if (session?.user) {
+          console.error('initAuth: Session error:', sessionError)
+          throw sessionError
+        }
+        
+        if (session?.user) {
           console.log('initAuth: User found, setting user state')
           setUser(session.user)
           setIsEmailVerified(session.user.email_confirmed_at !== null)
-          
-          // Fetch profile with proper error handling
-          try {
-            await fetchProfile(session.user.id)
-          } catch (profileErr) {
-            console.error('initAuth: Profile fetch failed:', profileErr)
-            // Don't fail initialization just because profile fetch failed
-            setProfile(null)
-          }
+          // Fetch profile without waiting for it to complete the loading state
+          fetchProfile(session.user.id).catch(err => {
+            console.error('initAuth: Profile fetch failed but continuing:', err)
+          })
         } else {
           console.log('initAuth: No active session found')
-          setUser(null)
-          setProfile(null)
-          setIsEmailVerified(false)
         }
       } catch (err) {
         if (!mounted) return
@@ -272,18 +155,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           errorType: err?.constructor?.name,
           errorMessage: err instanceof Error ? err.message : 'Unknown error'
         })
-        
-        // For network timeouts or connection issues, set a more user-friendly error
-        if (err instanceof Error && err.message.includes('timeout')) {
-          setError('Connection timeout. Please check your internet connection and try again.')
-        } else {
-          setError(err instanceof Error ? err.message : 'Failed to initialize authentication')
-        }
-        
-        // Clear auth state on initialization error
-        setUser(null)
-        setProfile(null)
-        setIsEmailVerified(false)
+        setError(err instanceof Error ? err.message : 'Failed to initialize authentication')
       } finally {
         if (mounted) {
           console.log('initAuth: Initialization complete, setting loading to false')
@@ -308,37 +180,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         })
         
         try {
-          // Clear any previous errors
-          setError(null)
-          
-          if (event === 'TOKEN_REFRESHED') {
-            console.log('onAuthStateChange: Token refreshed successfully')
-          }
-          
-          if (event === 'SIGNED_OUT' || (!session && event !== 'INITIAL_SESSION')) {
-            console.log('onAuthStateChange: User signed out or session expired')
-            setUser(null)
-            setProfile(null)
-            setIsEmailVerified(false)
-            await cleanupAuthTokens()
-            router.push('/')
-            return
-          }
-          
           if (session?.user) {
             setUser(session.user)
             setIsEmailVerified(session.user.email_confirmed_at !== null)
-            
-            // Fetch profile with enhanced error handling
-            try {
-              await fetchProfile(session.user.id)
-            } catch (profileErr) {
-              console.error('onAuthStateChange: Profile fetch failed:', profileErr)
-              // Don't clear user state just because profile fetch failed
-              setProfile(null)
-            }
-          } else if (event !== 'INITIAL_SESSION') {
-            // Only clear state if this isn't the initial session check
+            // Fetch profile asynchronously
+            fetchProfile(session.user.id).catch(err => {
+              console.error('onAuthStateChange: Profile fetch failed:', err)
+            })
+          } else {
             setUser(null)
             setProfile(null)
             setIsEmailVerified(false)
@@ -352,22 +201,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               router.push(oauthRedirectPath)
             }
           }
+          
+          if (event === 'SIGNED_OUT') {
+            router.push('/')
+          }
         } catch (err) {
           console.error('onAuthStateChange: Error handling auth state change:', {
             error: err,
             event,
             userId: session?.user?.id
           })
-          
-          // Set error state for user feedback
-          setError(err instanceof Error ? err.message : 'Authentication state error')
         }
       }
     )
     
     if (subscriptionError) {
       console.error('initAuth: Error setting up auth state listener:', subscriptionError)
-      setError('Failed to set up authentication monitoring')
     } else {
       console.log('initAuth: Auth state listener set up successfully')
     }
@@ -379,10 +228,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         subscription.unsubscribe()
       }
     }
-  }, [router, supabase]) // eslint-disable-line react-hooks/exhaustive-deps
-  // fetchProfile and cleanupAuthTokens are stable functions that don't change
+  }, [router]) // Only depend on router, not on client or fetchProfile
 
-  // Sign in with email and password - enhanced with better token management
+  // Sign in with email and password
   const signIn = async (email: string, password: string) => {
     if (!supabase) {
       throw new Error('Authentication service not initialized')
@@ -391,45 +239,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null)
       setLoading(true)
 
-      // Clear any existing tokens before signing in
-      await cleanupAuthTokens()
-
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) {
-        console.error('signIn: Authentication error:', error)
-        
-        // Handle specific error types
-        if (error.message.includes('Invalid login credentials')) {
-          throw new Error('Invalid email or password. Please check your credentials and try again.')
-        } else if (error.message.includes('Email not confirmed')) {
-          throw new Error('Please verify your email address before signing in.')
-        } else if (error.message.includes('Too many requests')) {
-          throw new Error('Too many sign-in attempts. Please wait a moment and try again.')
-        }
-        
-        throw error
-      }
+      if (error) throw error
 
       if (data.user) {
-        console.log('signIn: User authenticated successfully, fetching profile')
-        setUser(data.user)
-        setIsEmailVerified(data.user.email_confirmed_at !== null)
-        
-        try {
-          await fetchProfile(data.user.id)
-        } catch (profileErr) {
-          console.error('signIn: Profile fetch failed but sign-in succeeded:', profileErr)
-          // Don't fail the sign-in if profile fetch fails
-          setProfile(null)
-        }
+        await fetchProfile(data.user.id)
       }
     } catch (err) {
-      console.error('signIn: Sign-in failed:', err)
-      await cleanupAuthTokens() // Clean up on failure
       setError(err instanceof Error ? err.message : 'An error occurred during sign in')
       throw err
     } finally {
@@ -490,7 +310,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Sign out - enhanced with comprehensive token cleanup
+  // Sign out
   const signOut = async () => {
     if (!supabase) {
       throw new Error('Authentication service not initialized')
@@ -499,36 +319,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null)
       setLoading(true)
 
-      console.log('signOut: Starting sign out process')
-      
-      // Always clear local state first
-      setUser(null)
-      setProfile(null)
-      setIsEmailVerified(false)
-      
-      // Attempt to sign out from Supabase
       const { error } = await supabase.auth.signOut()
-      
-      if (error) {
-        console.error('signOut: Supabase sign out error:', error)
-        // Don't throw here - we still want to clean up local tokens
-      }
-      
-      // Always clean up tokens regardless of Supabase response
-      await cleanupAuthTokens()
-      
-      console.log('signOut: Sign out completed successfully')
-    } catch (err) {
-      console.error('signOut: Error during sign out:', err)
-      
-      // Even if sign out fails, clear local state and tokens
+      if (error) throw error
+
       setUser(null)
       setProfile(null)
-      setIsEmailVerified(false)
-      await cleanupAuthTokens()
-      
+    } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during sign out')
-      // Don't throw - we want sign out to always succeed locally
+      throw err
     } finally {
       setLoading(false)
     }
@@ -587,58 +385,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Refresh session - enhanced with better error handling
+  // Refresh session
   const refreshSession = async () => {
     if (!supabase) {
-      console.error('refreshSession: Authentication service not initialized')
+      console.error('Authentication service not initialized')
       return
     }
     try {
-      console.log('refreshSession: Attempting to refresh session')
-      
       const { data: { session }, error } = await supabase.auth.refreshSession()
       
-      if (error) {
-        console.error('refreshSession: Refresh failed:', error)
-        
-        // Handle specific refresh errors
-        if (error.message.includes('refresh_token_not_found') || 
-            error.message.includes('Invalid Refresh Token')) {
-          console.log('refreshSession: Invalid refresh token, cleaning up auth state')
-          await cleanupAuthTokens()
-          setUser(null)
-          setProfile(null)
-          setIsEmailVerified(false)
-          return
-        }
-        
-        throw error
-      }
+      if (error) throw error
       
       if (session?.user) {
-        console.log('refreshSession: Session refreshed successfully')
         setUser(session.user)
-        setIsEmailVerified(session.user.email_confirmed_at !== null)
-        
-        try {
-          await fetchProfile(session.user.id)
-        } catch (profileErr) {
-          console.error('refreshSession: Profile fetch failed after refresh:', profileErr)
-          // Don't fail the refresh just because profile fetch failed
-          setProfile(null)
-        }
-      } else {
-        console.log('refreshSession: No session after refresh')
-        setUser(null)
-        setProfile(null)
-        setIsEmailVerified(false)
+        await fetchProfile(session.user.id)
       }
     } catch (err) {
-      console.error('refreshSession: Error refreshing session:', err)
-      // Clear state on refresh failure
-      setUser(null)
-      setProfile(null)
-      setIsEmailVerified(false)
+      console.error('Error refreshing session:', err)
+      // Don't throw here, just log the error
     }
   }
 
@@ -749,35 +513,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // Session validation utility - exported for potential external use
-  const validateSession = async (): Promise<boolean> => {
-    if (!supabase) {
-      console.error('validateSession: Supabase client not initialized')
-      return false
-    }
-    
-    try {
-      const { data: { session }, error } = await supabase.auth.getSession()
-      
-      if (error || !session) {
-        console.log('validateSession: No valid session found')
-        return false
-      }
-      
-      // Check if session is expired
-      const now = Math.floor(Date.now() / 1000)
-      if (session.expires_at && session.expires_at < now) {
-        console.log('validateSession: Session expired')
-        return false
-      }
-      
-      return true
-    } catch (err) {
-      console.error('validateSession: Error validating session:', err)
-      return false
-    }
-  }
-
   const value: AuthContextType = {
     user,
     profile,
@@ -793,7 +528,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signInWithGoogle,
     signInWithGitHub,
     resendVerificationEmail,
-    validateSession,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

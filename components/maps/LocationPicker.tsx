@@ -10,9 +10,17 @@ import { Card } from '@/components/ui/card'
 import { motion, AnimatePresence } from 'framer-motion'
 import { cn } from '@/lib/utils'
 
+// Validate Mapbox environment variables
+const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+const mapboxStyle = process.env.NEXT_PUBLIC_MAPBOX_STYLE
+
 // Set Mapbox access token
-if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_MAPBOX_TOKEN) {
-  mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+if (typeof window !== 'undefined') {
+  if (!mapboxToken) {
+    console.error('Missing Mapbox token. Please ensure NEXT_PUBLIC_MAPBOX_TOKEN is set in your environment variables.')
+  } else {
+    mapboxgl.accessToken = mapboxToken
+  }
 }
 
 interface LocationPickerProps {
@@ -58,10 +66,15 @@ export function LocationPicker({
 
   // Reverse geocoding
   const reverseGeocode = useCallback(async (lat: number, lng: number) => {
+    if (!mapboxToken) {
+      console.error('Cannot perform reverse geocoding: Mapbox token is missing')
+      return
+    }
+    
     try {
       const response = await fetch(
         `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?` +
-        `access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}&types=address&limit=1`
+        `access_token=${mapboxToken}&types=address&limit=1`
       )
       
       if (response.ok) {
@@ -177,11 +190,17 @@ export function LocationPicker({
       return
     }
 
+    if (!mapboxToken) {
+      console.error('Cannot perform location search: Mapbox token is missing')
+      setIsSearching(false)
+      return
+    }
+
     setIsSearching(true)
     try {
       // Build URL with proximity bias based on current location
       let url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?` +
-        `access_token=${process.env.NEXT_PUBLIC_MAPBOX_TOKEN}&` +
+        `access_token=${mapboxToken}&` +
         `types=address,poi&limit=5`
       
       // Add proximity parameter if we have a user location or current marker position
@@ -329,14 +348,25 @@ export function LocationPicker({
 
       {/* Map Container */}
       <Card className="overflow-hidden">
-        <Map
+        {!mapboxToken ? (
+          <div className="flex items-center justify-center h-[400px] bg-gray-50">
+            <div className="text-center p-4">
+              <MapPin className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <p className="text-gray-600 font-medium">Map unavailable</p>
+              <p className="text-gray-500 text-sm mt-2">
+                Mapbox configuration is missing. Please check your environment variables.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <Map
           ref={mapRef}
           {...viewState}
           onMove={evt => setViewState(evt.viewState)}
           onClick={handleMapClick}
           style={{ width: '100%', height: '400px' }}
-          mapStyle={process.env.NEXT_PUBLIC_MAPBOX_STYLE}
-          mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
+          mapStyle={mapboxStyle || 'mapbox://styles/mapbox/streets-v12'}
+          mapboxAccessToken={mapboxToken}
           interactive={true}
           attributionControl={false}
         >
@@ -377,6 +407,7 @@ export function LocationPicker({
             </motion.div>
           </Marker>
         </Map>
+        )}
       </Card>
 
       {/* Instructions */}

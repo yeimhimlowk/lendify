@@ -5,9 +5,6 @@ export async function middleware(request: NextRequest) {
   // Skip auth checks for debug pages and API routes during development
   if (request.nextUrl.pathname.startsWith('/debug-auth') || 
       request.nextUrl.pathname.startsWith('/simple-auth-test') ||
-      request.nextUrl.pathname.startsWith('/final-auth-test') ||
-      request.nextUrl.pathname.startsWith('/test-auth') ||
-      request.nextUrl.pathname.startsWith('/network-test') ||
       request.nextUrl.pathname.startsWith('/api/debug')) {
     return NextResponse.next()
   }
@@ -51,7 +48,6 @@ export async function middleware(request: NextRequest) {
           persistSession: true,
           detectSessionInUrl: true,
           autoRefreshToken: true,
-          flowType: 'pkce',
         },
         db: {
           schema: 'public',
@@ -69,28 +65,12 @@ export async function middleware(request: NextRequest) {
       ])
     }
 
-    // Get user with enhanced error handling
+    // Refresh session if expired
     const { data: { user }, error } = await getUserWithTimeout()
     
     if (error) {
-      console.error('Middleware auth error:', {
-        error,
-        errorMessage: error.message,
-        errorCode: error.code,
-        pathname: request.nextUrl.pathname
-      })
-      
-      // Handle specific auth errors
-      if (error.message.includes('refresh_token_not_found') || 
-          error.message.includes('Invalid Refresh Token')) {
-        console.log('Middleware: Invalid refresh token detected')
-        // Clear cookies and continue
-        const response = NextResponse.next({ request })
-        response.cookies.delete('lendify-auth-token')
-        return response
-      }
-      
-      // For other auth errors, allow request to proceed but log the error
+      console.error('Middleware auth error:', error)
+      // If auth fails, allow request to proceed but log the error
       return NextResponse.next({
         request,
       })

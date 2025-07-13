@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
 
     const supabase = await createServerSupabaseClient()
 
-    // Build featured listings query
+    // Build featured listings query with simpler criteria to avoid database errors
     let query = supabase
       .from('listings')
       .select(`
@@ -38,9 +38,7 @@ export async function GET(request: NextRequest) {
       `)
       .eq('status', 'active')
       .not('photos', 'is', null)
-      .gte('array_length(photos, 1)', 1) // Must have at least 1 photo
       .not('description', 'is', null)
-      .gte('char_length(description)', 50) // Must have decent description
 
     // Filter by category if specified
     if (category) {

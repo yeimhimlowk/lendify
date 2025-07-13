@@ -55,7 +55,12 @@ export async function GET(
     logAPIRequest(request, 'GET_PUBLIC_PROFILE')
 
     // Validate user ID format
-    const userId = uuidSchema.parse(id)
+    try {
+      uuidSchema.parse(id)
+    } catch (validationError) {
+      return handleValidationError(validationError)
+    }
+    const userId = id // Use the validated ID
 
     // Parse query parameters
     // Filter out null values to prevent Zod coercion errors

@@ -39,6 +39,8 @@ export async function createServerSupabaseClient() {
         global: {
           headers: {
             'x-client-info': 'lendify-server-client',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
           },
         },
         auth: {
@@ -46,6 +48,7 @@ export async function createServerSupabaseClient() {
           detectSessionInUrl: true,
           autoRefreshToken: true,
           storageKey: 'lendify-auth-token',
+          flowType: 'pkce',
         },
         db: {
           schema: 'public',

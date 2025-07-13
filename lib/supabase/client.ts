@@ -45,6 +45,7 @@ export function createClient() {
           detectSessionInUrl: true,
           autoRefreshToken: true,
           storageKey: 'lendify-auth-token',
+          flowType: 'pkce',
         },
         db: {
           schema: 'public',
@@ -52,6 +53,8 @@ export function createClient() {
         global: {
           headers: {
             'x-client-info': 'lendify-web-client',
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
           },
         },
         realtime: {

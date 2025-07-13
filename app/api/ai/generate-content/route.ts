@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       result = await generateAIContent(validatedData)
       
       // Log successful generation for analytics
-      const { error: logError } = await supabase
+      const { error: logError } = await (supabase as any)
         .from('ai_usage_logs')
         .insert({
           user_id: user.id,
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       result = generateFallbackContent(validatedData)
       
       // Log failed generation
-      const { error: logError } = await supabase
+      const { error: logError } = await (supabase as any)
         .from('ai_usage_logs')
         .insert({
           user_id: user.id,

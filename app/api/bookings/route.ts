@@ -85,7 +85,7 @@ export async function GET(request: NextRequest) {
 
     // Apply filters
     if (query.status) {
-      dbQuery = dbQuery.eq('status', query.status)
+      dbQuery = dbQuery.eq('status', query.status as any)
     }
 
     if (query.start_date) {
@@ -97,16 +97,16 @@ export async function GET(request: NextRequest) {
     }
 
     if (query.listing_id) {
-      dbQuery = dbQuery.eq('listing_id', query.listing_id)
+      dbQuery = dbQuery.eq('listing_id', query.listing_id as any)
     }
 
     // Additional filters (only allow if user has permission)
     if (query.renter_id && query.renter_id === user.id) {
-      dbQuery = dbQuery.eq('renter_id', query.renter_id)
+      dbQuery = dbQuery.eq('renter_id', query.renter_id as any)
     }
 
     if (query.owner_id && query.owner_id === user.id) {
-      dbQuery = dbQuery.eq('owner_id', query.owner_id)
+      dbQuery = dbQuery.eq('owner_id', query.owner_id as any)
     }
 
     // Get total count for pagination
@@ -116,10 +116,10 @@ export async function GET(request: NextRequest) {
       .or(`renter_id.eq.${user.id},owner_id.eq.${user.id}`)
 
     // Apply same filters to count query
-    if (query.status) countQuery.eq('status', query.status)
+    if (query.status) countQuery.eq('status', query.status as any)
     if (query.start_date) countQuery.gte('start_date', query.start_date)
     if (query.end_date) countQuery.lte('end_date', query.end_date)
-    if (query.listing_id) countQuery.eq('listing_id', query.listing_id)
+    if (query.listing_id) countQuery.eq('listing_id', query.listing_id as any)
 
     const { count } = await countQuery
 
@@ -146,7 +146,7 @@ export async function GET(request: NextRequest) {
 
     const response = NextResponse.json(
       createPaginatedResponse(
-        bookings as BookingWithDetails[],
+        bookings as any as BookingWithDetails[],
         { page: query.page, limit: query.limit },
         count || 0
       )
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
     const { data: listing, error: listingError } = await supabase
       .from('listings')
       .select('id, owner_id, price_per_day, status, title')
-      .eq('id', validatedData.listing_id)
+      .eq('id', validatedData.listing_id as any)
       .single()
 
     if (listingError || !listing) {
@@ -195,7 +195,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (listing.status !== 'active') {
+    if ((listing as any).status !== 'active') {
       return NextResponse.json(
         { error: 'Listing is not available for booking' },
         { status: 400 }
@@ -203,7 +203,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Prevent users from booking their own listings
-    if (listing.owner_id === user.id) {
+    if ((listing as any).owner_id === user.id) {
       return NextResponse.json(
         { error: 'You cannot book your own listing' },
         { status: 400 }
@@ -214,8 +214,8 @@ export async function POST(request: NextRequest) {
     const { data: conflictingBookings, error: conflictError } = await supabase
       .from('bookings')
       .select('id, start_date, end_date, status')
-      .eq('listing_id', validatedData.listing_id)
-      .in('status', ['confirmed', 'active'])
+      .eq('listing_id', validatedData.listing_id as any)
+      .in('status', ['confirmed', 'active'] as any)
       .or(`
         and(start_date.lte.${validatedData.start_date},end_date.gte.${validatedData.start_date}),
         and(start_date.lte.${validatedData.end_date},end_date.gte.${validatedData.end_date}),
@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
     const startDate = new Date(validatedData.start_date)
     const endDate = new Date(validatedData.end_date)
     const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-    const expectedPrice = daysDiff * listing.price_per_day
+    const expectedPrice = daysDiff * (listing as any).price_per_day
 
     // Allow for small floating point differences
     if (Math.abs(validatedData.total_price - expectedPrice) > 0.01) {
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
           error: 'Invalid total price calculation',
           details: {
             days: daysDiff,
-            price_per_day: listing.price_per_day,
+            price_per_day: (listing as any).price_per_day,
             expected_total: expectedPrice,
             provided_total: validatedData.total_price
           }
@@ -258,14 +258,14 @@ export async function POST(request: NextRequest) {
       .insert({
         listing_id: validatedData.listing_id,
         renter_id: user.id,
-        owner_id: listing.owner_id,
+        owner_id: (listing as any).owner_id,
         start_date: validatedData.start_date,
         end_date: validatedData.end_date,
         total_price: validatedData.total_price,
         status: 'pending',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
-      })
+      } as any)
       .select(`
         *,
         listing:listings(

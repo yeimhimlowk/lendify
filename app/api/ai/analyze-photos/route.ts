@@ -56,14 +56,14 @@ export async function POST(request: NextRequest) {
     // Check if we have cached analysis for this listing
     let cachedAnalysis = null
     if (validatedData.listing_id) {
-      const { data: cache } = await supabase
+      const { data: cache, error } = await (supabase as any)
         .from('ai_analysis_cache')
         .select('*')
         .eq('listing_id', validatedData.listing_id)
         .single()
 
-      if (cache && cache.created_at) {
-        const cacheAge = Date.now() - new Date(cache.created_at).getTime()
+      if (!error && cache && (cache as any).created_at) {
+        const cacheAge = Date.now() - new Date((cache as any).created_at).getTime()
         // Use cache if less than 24 hours old
         if (cacheAge < 24 * 60 * 60 * 1000) {
           cachedAnalysis = cache
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     if (cachedAnalysis) {
       // Return cached analysis
-      analysisResult = (cachedAnalysis.claude_content as any) || {}
+      analysisResult = ((cachedAnalysis as any).claude_content as any) || {}
     } else {
       // Perform new AI analysis
       try {
@@ -86,7 +86,7 @@ export async function POST(request: NextRequest) {
 
         // Cache the results if we have a listing_id
         if (validatedData.listing_id) {
-          await supabase
+          await (supabase as any)
             .from('ai_analysis_cache')
             .upsert({
               listing_id: validatedData.listing_id,

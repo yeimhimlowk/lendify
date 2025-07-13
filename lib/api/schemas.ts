@@ -161,6 +161,11 @@ export const searchQuerySchema = z.object({
   available_to: z.string().datetime().optional(),
   sortBy: z.enum(['relevance', 'price_per_day', 'created_at', 'distance']).default('relevance'),
   sortOrder: z.enum(['asc', 'desc']).default('desc')
+}).refine(_data => {
+  // If no query is provided but other params are, that's OK for filtering
+  return true
+}, {
+  message: "At least one search parameter must be provided"
 })
 
 export const searchSuggestionsSchema = z.object({

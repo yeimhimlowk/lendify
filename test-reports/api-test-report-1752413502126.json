@@ -1,0 +1,179 @@
+{
+  "summary": {
+    "total": 23,
+    "passed": 18,
+    "failed": 5,
+    "skipped": 0,
+    "passRate": 78.3,
+    "duration": 6.491,
+    "timestamp": "2025-07-13T13:31:42.125Z"
+  },
+  "tests": [
+    {
+      "name": "Health Check",
+      "passed": false,
+      "message": "Health endpoint not implemented (optional)",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:35.703Z"
+    },
+    {
+      "name": "GET /listings",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:36.262Z"
+    },
+    {
+      "name": "GET /listings with filters",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:36.346Z"
+    },
+    {
+      "name": "GET /listings/featured",
+      "passed": false,
+      "message": "Failed to get featured listings",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:36.641Z"
+    },
+    {
+      "name": "POST /listings (no auth)",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:36.722Z"
+    },
+    {
+      "name": "GET /search (no query)",
+      "passed": false,
+      "message": "Should require query parameter",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:38.146Z"
+    },
+    {
+      "name": "GET /search with query",
+      "passed": false,
+      "message": "Failed to search listings",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:38.391Z"
+    },
+    {
+      "name": "GET /search/suggestions",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:38.904Z"
+    },
+    {
+      "name": "GET /categories",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:39.169Z"
+    },
+    {
+      "name": "GET /categories with params",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:39.544Z"
+    },
+    {
+      "name": "POST /categories (no auth)",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:39.648Z"
+    },
+    {
+      "name": "GET /bookings (no auth)",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:40.034Z"
+    },
+    {
+      "name": "POST /bookings (no auth)",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:40.096Z"
+    },
+    {
+      "name": "GET /users/profile (no auth)",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:40.332Z"
+    },
+    {
+      "name": "GET /users/[id] (invalid UUID)",
+      "passed": false,
+      "message": "Should validate UUID format",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:40.947Z"
+    },
+    {
+      "name": "POST /ai/analyze-photos (no auth)",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:41.275Z"
+    },
+    {
+      "name": "POST /ai/generate-content (no auth)",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:41.568Z"
+    },
+    {
+      "name": "POST /ai/price-suggestions (no auth)",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:41.815Z"
+    },
+    {
+      "name": "Rate Limiting Test",
+      "passed": true,
+      "message": "Rate limiting test completed (may not trigger with low volume)",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:41.967Z"
+    },
+    {
+      "name": "CORS Headers",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:41.981Z"
+    },
+    {
+      "name": "Security Headers",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:42.038Z"
+    },
+    {
+      "name": "404 Error Handling",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:42.119Z"
+    },
+    {
+      "name": "405 Error Handling",
+      "passed": true,
+      "message": "",
+      "details": {},
+      "timestamp": "2025-07-13T13:31:42.125Z"
+    }
+  ],
+  "environment": {
+    "baseUrl": "http://localhost:3000/api",
+    "nodeVersion": "v20.19.0",
+    "platform": "linux"
+  }
+}

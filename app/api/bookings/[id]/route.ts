@@ -19,15 +19,15 @@ import {
   uuidSchema,
   type UpdateBookingInput 
 } from '@/lib/api/schemas'
-import type { Database } from '@/lib/supabase/types'
+// import type { Database } from '@/lib/supabase/types'
 
-type BookingWithDetails = Database['public']['Tables']['bookings']['Row'] & {
-  listing?: Database['public']['Tables']['listings']['Row'] & {
-    category?: Database['public']['Tables']['categories']['Row']
-  }
-  renter?: Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'avatar_url' | 'rating' | 'verified'>
-  owner?: Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'avatar_url' | 'rating' | 'verified'>
-}
+// type BookingWithDetails = Database['public']['Tables']['bookings']['Row'] & {
+//   listing?: Database['public']['Tables']['listings']['Row'] & {
+//     category?: Database['public']['Tables']['categories']['Row']
+//   }
+//   renter?: Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'avatar_url' | 'rating' | 'verified'>
+//   owner?: Pick<Database['public']['Tables']['profiles']['Row'], 'id' | 'full_name' | 'avatar_url' | 'rating' | 'verified'>
+// }
 
 /**
  * GET /api/bookings/[id] - Get single booking details
@@ -44,7 +44,7 @@ export async function GET(
     const user = await requireAuth(request)
 
     // Validate UUID format
-    const bookingId = uuidSchema.parse(id)
+    uuidSchema.parse(id)
 
     const supabase = await createServerSupabaseClient()
 
@@ -66,7 +66,7 @@ export async function GET(
         renter:profiles!bookings_renter_id_fkey(id, full_name, avatar_url, rating, verified),
         owner:profiles!bookings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
       `)
-      .eq('id', bookingId)
+      .eq('id', id as any)
       .single()
 
     if (error || !booking) {
@@ -74,13 +74,13 @@ export async function GET(
     }
 
     // Check if user has permission to view this booking
-    const hasPermission = user.id === booking.renter_id || user.id === booking.owner_id
+    const hasPermission = user.id === (booking as any).renter_id || user.id === (booking as any).owner_id
     if (!hasPermission) {
       return handleAuthorizationError('You can only view your own bookings')
     }
 
     const response = NextResponse.json(
-      createSuccessResponse(booking as BookingWithDetails)
+      createSuccessResponse(booking as any)
     )
 
     return addSecurityHeaders(response)
@@ -111,7 +111,7 @@ export async function PUT(
     const user = await requireAuth(request)
 
     // Validate UUID format
-    const bookingId = uuidSchema.parse(id)
+    uuidSchema.parse(id)
 
     // Parse and validate request body
     const body = await request.json()
@@ -123,7 +123,7 @@ export async function PUT(
     const { data: existingBooking, error: fetchError } = await supabase
       .from('bookings')
       .select('*')
-      .eq('id', bookingId)
+      .eq('id', id as any)
       .single()
 
     if (fetchError || !existingBooking) {
@@ -131,8 +131,8 @@ export async function PUT(
     }
 
     // Check permissions based on the operation
-    const isRenter = user.id === existingBooking.renter_id
-    const isOwner = user.id === existingBooking.owner_id
+    const isRenter = user.id === (existingBooking as any).renter_id
+    const isOwner = user.id === (existingBooking as any).owner_id
 
     if (!isRenter && !isOwner) {
       return handleAuthorizationError('You can only update your own bookings')
@@ -140,7 +140,7 @@ export async function PUT(
 
     // Validate status transitions and permissions
     if (validatedData.status) {
-      const currentStatus = existingBooking.status
+      const currentStatus = (existingBooking as any).status
       const newStatus = validatedData.status
 
       // Define allowed status transitions
@@ -189,7 +189,7 @@ export async function PUT(
     // Validate date changes
     if (validatedData.start_date || validatedData.end_date) {
       // Only allow date changes for pending bookings
-      if (existingBooking.status !== 'pending') {
+      if ((existingBooking as any).status !== 'pending') {
         return NextResponse.json(
           { error: 'Dates can only be changed for pending bookings' },
           { status: 400 }
@@ -201,16 +201,16 @@ export async function PUT(
         return handleAuthorizationError('Only the renter can change booking dates')
       }
 
-      const startDate = validatedData.start_date || existingBooking.start_date
-      const endDate = validatedData.end_date || existingBooking.end_date
+      const startDate = validatedData.start_date || (existingBooking as any).start_date
+      const endDate = validatedData.end_date || (existingBooking as any).end_date
 
       // Check for conflicts with other bookings
       const { data: conflictingBookings, error: conflictError } = await supabase
         .from('bookings')
         .select('id')
-        .eq('listing_id', existingBooking.listing_id)
-        .neq('id', bookingId) // Exclude current booking
-        .in('status', ['confirmed', 'active'])
+        .eq('listing_id', (existingBooking as any).listing_id)
+        .neq('id', id as any) // Exclude current booking
+        .in('status', ['confirmed', 'active'] as any)
         .or(`
           and(start_date.lte.${startDate},end_date.gte.${startDate}),
           and(start_date.lte.${endDate},end_date.gte.${endDate}),
@@ -230,14 +230,14 @@ export async function PUT(
         const { data: listing } = await supabase
           .from('listings')
           .select('price_per_day')
-          .eq('id', existingBooking.listing_id)
+          .eq('id', (existingBooking as any).listing_id)
           .single()
 
         if (listing) {
           const daysDiff = Math.ceil(
             (new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)
           )
-          validatedData.total_price = daysDiff * listing.price_per_day
+          validatedData.total_price = daysDiff * (listing as any).price_per_day
         }
       }
     }
@@ -250,8 +250,8 @@ export async function PUT(
 
     const { data: updatedBooking, error } = await supabase
       .from('bookings')
-      .update(updateData)
-      .eq('id', bookingId)
+      .update(updateData as any)
+      .eq('id', id as any)
       .select(`
         *,
         listing:listings(
@@ -311,7 +311,7 @@ export async function DELETE(
     const user = await requireAuth(request)
 
     // Validate UUID format
-    const bookingId = uuidSchema.parse(id)
+    uuidSchema.parse(id)
 
     const supabase = await createServerSupabaseClient()
 
@@ -319,7 +319,7 @@ export async function DELETE(
     const { data: existingBooking, error: fetchError } = await supabase
       .from('bookings')
       .select('*')
-      .eq('id', bookingId)
+      .eq('id', id as any)
       .single()
 
     if (fetchError || !existingBooking) {
@@ -327,22 +327,22 @@ export async function DELETE(
     }
 
     // Check permissions
-    const isRenter = user.id === existingBooking.renter_id
-    const isOwner = user.id === existingBooking.owner_id
+    const isRenter = user.id === (existingBooking as any).renter_id
+    const isOwner = user.id === (existingBooking as any).owner_id
 
     if (!isRenter && !isOwner) {
       return handleAuthorizationError('You can only cancel your own bookings')
     }
 
     // Check if booking can be cancelled
-    if (existingBooking.status === 'completed') {
+    if ((existingBooking as any).status === 'completed') {
       return NextResponse.json(
         { error: 'Completed bookings cannot be cancelled' },
         { status: 400 }
       )
     }
 
-    if (existingBooking.status === 'cancelled') {
+    if ((existingBooking as any).status === 'cancelled') {
       return NextResponse.json(
         { error: 'Booking is already cancelled' },
         { status: 400 }
@@ -355,8 +355,8 @@ export async function DELETE(
       .update({
         status: 'cancelled',
         updated_at: new Date().toISOString()
-      })
-      .eq('id', bookingId)
+      } as any)
+      .eq('id', id as any)
       .select('*')
       .single()
 

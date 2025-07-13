@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     const { data: category, error: categoryError } = await supabase
       .from('categories')
       .select('name, slug')
-      .eq('id', validatedData.category_id)
+      .eq('id', validatedData.category_id as any)
       .single()
 
     if (categoryError || !category) {
@@ -79,11 +79,11 @@ export async function POST(request: NextRequest) {
     const pricingSuggestion = await generatePricingSuggestion(
       validatedData,
       marketData,
-      category.name
+      (category as any).name
     )
 
     // Log pricing analysis for analytics
-    const { error: logError } = await supabase
+    const { error: logError } = await (supabase as any)
       .from('ai_usage_logs')
       .insert({
         user_id: user.id,
@@ -108,8 +108,8 @@ export async function POST(request: NextRequest) {
         {
           category: {
             id: validatedData.category_id,
-            name: category.name,
-            slug: category.slug
+            name: (category as any).name,
+            slug: (category as any).slug
           },
           condition: validatedData.condition,
           location: validatedData.location,
