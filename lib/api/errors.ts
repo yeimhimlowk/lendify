@@ -92,6 +92,8 @@ export function createErrorResponse(
  * @returns NextResponse with validation error
  */
 export function handleValidationError(error: unknown): NextResponse {
+  console.log('Handling validation error:', error)
+  
   // Type guard to ensure we have a proper ZodError
   if (!(error instanceof ZodError)) {
     // If it's not a ZodError instance but has the name property, log warning
@@ -115,8 +117,15 @@ export function handleValidationError(error: unknown): NextResponse {
     code: err.code || 'custom'
   }))
 
+  console.log('Validation error details:', details)
+
+  // Create a more user-friendly error message
+  const userFriendlyMessage = details.length > 0 
+    ? `Please check the following: ${details.map(d => d.message).join(', ')}`
+    : 'Please check your input and try again'
+
   return createErrorResponse(
-    'Validation failed',
+    userFriendlyMessage,
     400,
     ErrorCode.VALIDATION_ERROR,
     details

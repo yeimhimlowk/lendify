@@ -267,7 +267,16 @@ async function handlePOST(request: NextRequest) {
 
     // Parse and validate request body
     const body = await request.json()
-    const validatedData: CreateListingInput = createListingSchema.parse(body)
+    console.log('Received listing data:', JSON.stringify(body, null, 2))
+    
+    let validatedData: CreateListingInput
+    try {
+      validatedData = createListingSchema.parse(body)
+      console.log('Validation successful, processed data:', JSON.stringify(validatedData, null, 2))
+    } catch (validationError) {
+      console.error('Validation error details:', validationError)
+      throw validationError
+    }
 
     // Verify category exists
     const { data: category, error: categoryError } = await supabase
@@ -286,16 +295,21 @@ async function handlePOST(request: NextRequest) {
     // Create listing data
 
     // Remove the plain location object as we've converted it to PostGIS format
-    const { location, availability, ...dataWithoutLocation } = validatedData
+    // Also remove photoData since it's frontend-only and not a database column
+    const { location, availability, photoData, ...dataWithoutLocation } = validatedData
+    
+    const insertData = {
+      ...dataWithoutLocation,
+      availability: availability ? JSON.parse(JSON.stringify(availability)) : {},
+      owner_id: user.id,
+      location: `POINT(${location.lng} ${location.lat})`
+    }
+    
+    console.log('Data being inserted into database:', JSON.stringify(insertData, null, 2))
     
     const { data: listing, error } = await supabase
       .from('listings')
-      .insert({
-        ...dataWithoutLocation,
-        availability: availability ? JSON.parse(JSON.stringify(availability)) : {},
-        owner_id: user.id,
-        location: `POINT(${location.lng} ${location.lat})`
-      })
+      .insert(insertData)
       .select(`
         *,
         category:categories(*),
@@ -304,6 +318,7 @@ async function handlePOST(request: NextRequest) {
       .single()
 
     if (error) {
+      console.error('Database insertion error:', error)
       throw new Error(`Failed to create listing: ${error.message}`)
     }
 

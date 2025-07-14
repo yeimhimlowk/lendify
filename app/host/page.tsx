@@ -40,7 +40,7 @@ export default function CreateListingPage() {
       title: '',
       description: '',
       category_id: '',
-      price_per_day: 0,
+      price_per_day: 1, // Set minimum valid price
       condition: 'good',
       address: '',
       location: { lat: 0, lng: 0 },
@@ -93,13 +93,60 @@ export default function CreateListingPage() {
     
     setDebugInfo(prev => [...prev, `FORM SUBMITTED at step ${currentStep} - Processing...`])
     setIsSubmitting(true)
+    
     try {
-      // TODO: Implement API call to create listing
-      console.log('Creating listing:', data)
+      console.log('Creating listing with form data:', data)
+      
+      // Validate required fields before submission
+      if (!data.title || !data.description || !data.category_id || !data.address) {
+        throw new Error('Please fill in all required fields: title, description, category, and address')
+      }
+      
+      if (data.price_per_day <= 0) {
+        throw new Error('Price per day must be greater than 0')
+      }
+      
+      if (!data.location || data.location.lat === 0 && data.location.lng === 0) {
+        throw new Error('Please set a valid location')
+      }
+      
+      // Prepare the listing data for API
+      const listingData = {
+        ...data,
+        status: 'active' // Make sure listing is active so it appears in searches
+      }
+      
+      console.log('Sending listing data to API:', listingData)
+      
+      // Call the API to create the listing
+      const response = await fetch('/api/listings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(listingData)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('API error response:', errorData)
+        throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`)
+      }
+
+      const result = await response.json()
+      console.log('Listing created successfully:', result)
+      setDebugInfo(prev => [...prev, `SUCCESS: Listing created with ID ${result.data?.id}`])
+      
+      // Clear the draft and redirect to My Listings page
       localStorage.removeItem('listing-draft')
-      router.push('/dashboard')
-    } catch (error) {
+      router.push('/dashboard/listings?new=true')
+      
+    } catch (error: any) {
       console.error('Failed to create listing:', error)
+      setDebugInfo(prev => [...prev, `ERROR: ${error.message}`])
+      
+      // Show error to user - you might want to add a toast or error state here
+      alert(`Failed to create listing: ${error.message}`)
     } finally {
       setIsSubmitting(false)
     }

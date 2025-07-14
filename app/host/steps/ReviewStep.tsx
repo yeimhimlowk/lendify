@@ -1,23 +1,34 @@
 'use client'
 
 import { useFormContext } from 'react-hook-form'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import Image from 'next/image'
 import type { CreateListingInput } from '@/lib/api/schemas'
 
-// Mock categories - should match BasicInfoStep
-const categories = [
-  { id: '1', name: 'Electronics', icon: '💻' },
-  { id: '2', name: 'Tools & Equipment', icon: '🔧' },
-  { id: '3', name: 'Sports & Outdoors', icon: '⚽' },
-  { id: '4', name: 'Home & Garden', icon: '🏡' },
-  { id: '5', name: 'Party & Events', icon: '🎉' },
-  { id: '6', name: 'Vehicles', icon: '🚗' },
-  { id: '7', name: 'Clothing & Accessories', icon: '👕' },
-  { id: '8', name: 'Books & Media', icon: '📚' },
-  { id: '9', name: 'Musical Instruments', icon: '🎸' },
-  { id: '10', name: 'Other', icon: '📦' }
-]
+// Category type from API
+interface Category {
+  id: string
+  name: string
+  slug: string
+  icon: string | null
+}
+
+// Icon mapping for categories
+const categoryIcons: Record<string, string> = {
+  'electronics': '💻',
+  'tools-equipment': '🔧',
+  'sports-outdoors': '⚽',
+  'home-garden': '🏡',
+  'vehicles': '🚗',
+  'party-events': '🎉',
+  'fashion-accessories': '👕',
+  'music-audio': '🎸',
+  'cameras-photography': '📷',
+  'books-media': '📚',
+  'baby-kids': '👶',
+  'other': '📦'
+}
 
 const conditionLabels = {
   new: 'New',
@@ -30,8 +41,27 @@ const conditionLabels = {
 export default function ReviewStep() {
   const { watch } = useFormContext<CreateListingInput>()
   const formData = watch()
+  const [categories, setCategories] = useState<Category[]>([])
+
+  // Fetch categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const response = await fetch('/api/categories')
+        if (response.ok) {
+          const data = await response.json()
+          setCategories(data.data || [])
+        }
+      } catch (error) {
+        console.error('Error fetching categories:', error)
+      }
+    }
+
+    fetchCategories()
+  }, [])
 
   const category = categories.find(c => c.id === formData.category_id)
+  const categoryIcon = category ? categoryIcons[category.slug] || '📦' : '📦'
 
   return (
     <div className="space-y-6">
@@ -76,7 +106,7 @@ export default function ReviewStep() {
             <h2 className="text-2xl font-bold text-gray-900">{formData.title}</h2>
             {category && (
               <p className="text-sm text-gray-600 mt-1">
-                {category.icon} {category.name}
+                {categoryIcon} {category.name}
               </p>
             )}
           </div>

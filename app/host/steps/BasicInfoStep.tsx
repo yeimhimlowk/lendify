@@ -7,21 +7,32 @@ import { Label } from '@/components/ui/label'
 import { SimpleSelect } from '@/components/ui/simple-select'
 import { Button } from '@/components/ui/button'
 import { Alert } from '@/components/ui/alert'
+import { Loader2 } from 'lucide-react'
 import type { CreateListingInput } from '@/lib/api/schemas'
 
-// Mock categories - replace with API call
-const categories = [
-  { id: '550e8400-e29b-41d4-a716-446655440001', name: 'Electronics', icon: '💻' },
-  { id: '550e8400-e29b-41d4-a716-446655440002', name: 'Tools & Equipment', icon: '🔧' },
-  { id: '550e8400-e29b-41d4-a716-446655440003', name: 'Sports & Outdoors', icon: '⚽' },
-  { id: '550e8400-e29b-41d4-a716-446655440004', name: 'Home & Garden', icon: '🏡' },
-  { id: '550e8400-e29b-41d4-a716-446655440005', name: 'Party & Events', icon: '🎉' },
-  { id: '550e8400-e29b-41d4-a716-446655440006', name: 'Vehicles', icon: '🚗' },
-  { id: '550e8400-e29b-41d4-a716-446655440007', name: 'Clothing & Accessories', icon: '👕' },
-  { id: '550e8400-e29b-41d4-a716-446655440008', name: 'Books & Media', icon: '📚' },
-  { id: '550e8400-e29b-41d4-a716-446655440009', name: 'Musical Instruments', icon: '🎸' },
-  { id: '550e8400-e29b-41d4-a716-446655440010', name: 'Other', icon: '📦' }
-]
+// Category type from API
+interface Category {
+  id: string
+  name: string
+  slug: string
+  icon: string | null
+}
+
+// Icon mapping for categories
+const categoryIcons: Record<string, string> = {
+  'electronics': '💻',
+  'tools-equipment': '🔧',
+  'sports-outdoors': '⚽',
+  'home-garden': '🏡',
+  'vehicles': '🚗',
+  'party-events': '🎉',
+  'fashion-accessories': '👕',
+  'music-audio': '🎸',
+  'cameras-photography': '📷',
+  'books-media': '📚',
+  'baby-kids': '👶',
+  'other': '📦'
+}
 
 export default function BasicInfoStep() {
   const { register, formState: { errors }, watch, setValue } = useFormContext<CreateListingInput>()
@@ -30,10 +41,38 @@ export default function BasicInfoStep() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
   const [generatedAlternatives, setGeneratedAlternatives] = useState<string[]>([])
+  const [categories, setCategories] = useState<Category[]>([])
+  const [loadingCategories, setLoadingCategories] = useState(true)
+  const [categoryError, setCategoryError] = useState<string | null>(null)
 
   const title = watch('title')
   const description = watch('description')
   const categoryId = watch('category_id')
+
+  // Fetch categories from API
+  useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        setLoadingCategories(true)
+        setCategoryError(null)
+        
+        const response = await fetch('/api/categories')
+        if (!response.ok) {
+          throw new Error(`Failed to fetch categories: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        setCategories(data.data || [])
+      } catch (error) {
+        console.error('Error fetching categories:', error)
+        setCategoryError('Failed to load categories. Please refresh the page.')
+      } finally {
+        setLoadingCategories(false)
+      }
+    }
+
+    fetchCategories()
+  }, [])
 
   useEffect(() => {
     setTitleLength(title?.length || 0)
@@ -195,15 +234,27 @@ export default function BasicInfoStep() {
             id="category"
             label="Category"
             {...register('category_id')}
-            error={errors.category_id?.message}
+            error={errors.category_id?.message || categoryError}
+            disabled={loadingCategories}
           >
-            <option value="">Select a category</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.icon} {category.name}
-              </option>
-            ))}
+            <option value="">
+              {loadingCategories ? 'Loading categories...' : 'Select a category'}
+            </option>
+            {!loadingCategories && categories.map((category) => {
+              const icon = categoryIcons[category.slug] || '📦'
+              return (
+                <option key={category.id} value={category.id}>
+                  {icon} {category.name}
+                </option>
+              )
+            })}
           </SimpleSelect>
+          {loadingCategories && (
+            <div className="flex items-center gap-2 mt-2 text-sm text-gray-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading categories...
+            </div>
+          )}
         </div>
 
       </div>

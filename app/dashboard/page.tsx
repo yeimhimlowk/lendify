@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import { createClient } from "@/lib/supabase/client"
 // import { useUser } from "@/lib/auth/use-auth" // Removed for auth cleanup
 import {
   Package,
@@ -201,13 +202,56 @@ export default function DashboardPage() {
   const profile = null
   const firstName = profile?.full_name?.split(' ')[0] || 'there'
 
-  // Mock data - replace with real data
-  const stats = {
-    activeListings: 12,
-    totalBookings: 48,
-    monthlyEarnings: 2847,
+  // State for dashboard statistics
+  const [stats, setStats] = useState({
+    activeListings: 0,
+    totalBookings: 0,
+    monthlyEarnings: 0,
     rating: 4.8
-  }
+  })
+  const [, setIsLoading] = useState(true)
+
+  // Fetch real data from Supabase on component mount
+  useEffect(() => {
+    async function fetchDashboardData() {
+      try {
+        const supabase = createClient()
+        
+        // Count active listings
+        const { count: activeListings } = await supabase
+          .from('listings')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'active')
+        
+        // Count total bookings
+        const { count: totalBookings } = await supabase
+          .from('bookings')
+          .select('*', { count: 'exact', head: true })
+        
+        // Calculate total earnings (sum of completed bookings)
+        const { data: completedBookings } = await supabase
+          .from('bookings')
+          .select('total_price')
+          .eq('status', 'completed')
+        
+        const monthlyEarnings = completedBookings?.reduce((sum, booking) => sum + (booking.total_price || 0), 0) || 0
+        
+        setStats({
+          activeListings: activeListings || 0,
+          totalBookings: totalBookings || 0,
+          monthlyEarnings,
+          rating: 4.8 // TODO: Calculate from reviews when implemented
+        })
+      } catch (error) {
+        console.error('Error fetching dashboard stats:', error)
+        // Keep default stats
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchDashboardData()
+  }, [])
 
   const recentActivity = [
     {

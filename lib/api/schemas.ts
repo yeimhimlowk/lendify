@@ -34,7 +34,7 @@ export const createListingSchema = z.object({
   condition: conditionSchema,
   address: z.string().min(5).max(500),
   location: locationSchema,
-  photos: z.array(z.string().url()).min(1).max(10),
+  photos: z.array(z.string().url()).min(0).max(10), // Allow empty array for drafts
   photoData: z.array(z.object({
     url: z.string().url(),
     path: z.string()
@@ -42,6 +42,15 @@ export const createListingSchema = z.object({
   tags: z.array(z.string().min(1).max(50)).max(20).optional(),
   availability: z.record(z.string(), z.boolean()).optional(),
   status: listingStatusSchema.optional().default('draft')
+}).refine((data) => {
+  // If status is 'active', photos are required
+  if (data.status === 'active' && data.photos.length === 0) {
+    return false
+  }
+  return true
+}, {
+  message: "Active listings must have at least one photo",
+  path: ["photos"]
 })
 
 export const updateListingSchema = createListingSchema.partial()
