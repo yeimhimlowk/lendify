@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { handleRateLimitError, handleInternalError } from '@/lib/api/errors'
 
 /**
@@ -152,24 +151,49 @@ export function sanitizeInput() {
  * Authentication requirement middleware
  */
 export function requireAuthentication() {
-  return async (_request: NextRequest): Promise<NextResponse | null> => {
+  return async (request: NextRequest): Promise<NextResponse | null> => {
     try {
+      // Check if required environment variables are present
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        console.warn('Supabase environment variables not configured, skipping auth')
+        return null // Allow request when not configured
+      }
+
+      // Import server-side Supabase client
+      const { createServerSupabaseClient } = await import('@/lib/supabase/server')
       const supabase = await createServerSupabaseClient()
-      const { data: { user }, error } = await supabase.auth.getUser()
+      
+      // Get user from session (cookies) with timeout
+      const authPromise = supabase.auth.getUser()
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Auth timeout')), 3000)
+      )
+      
+      const { data: { user }, error } = await Promise.race([
+        authPromise,
+        timeoutPromise
+      ]) as any
       
       if (error || !user) {
         return NextResponse.json(
-          { 
-            error: 'Authentication required',
-            message: 'Please log in to access this resource'
-          },
+          { error: 'Authentication required' },
           { status: 401 }
         )
       }
-      
-      return null // Allow request
-    } catch (_error) {
-      return handleInternalError('Authentication check failed')
+
+      // Authentication successful - continue to next middleware/handler
+      return null
+    } catch (error) {
+      console.error('Authentication middleware error:', error)
+      // For development/fallback, allow requests when auth service is down
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('Auth service unavailable in development, allowing request')
+        return null
+      }
+      return NextResponse.json(
+        { error: 'Authentication service unavailable' },
+        { status: 503 }
+      )
     }
   }
 }

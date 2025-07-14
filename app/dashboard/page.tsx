@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { useUser } from "@/lib/auth/use-auth"
+// import { useUser } from "@/lib/auth/use-auth" // Removed for auth cleanup
 import {
   Package,
   Calendar,
@@ -196,7 +196,9 @@ function ActivityItem({
 }
 
 export default function DashboardPage() {
-  const { profile } = useUser()
+  // TODO: Replace with non-auth user state - auth removed
+  // const { profile } = useUser()
+  const profile = null
   const firstName = profile?.full_name?.split(' ')[0] || 'there'
 
   // Mock data - replace with real data

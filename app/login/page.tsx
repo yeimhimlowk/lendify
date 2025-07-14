@@ -1,285 +1,226 @@
 'use client'
 
-import { Suspense, useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useSearchParams } from 'next/navigation'
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { z } from 'zod'
-import { useAuth, usePostLoginRedirect } from '@/lib/auth/use-auth'
-import { FormInput } from '@/components/ui/form-input'
-import { LoadingButton } from '@/components/ui/loading-button'
-import { Alert } from '@/components/ui/alert'
-import { Eye, EyeOff } from 'lucide-react'
+import { useAuth } from '@/lib/auth/auth-context'
+import { Eye, EyeOff, Mail, Lock, Loader2, AlertCircle } from 'lucide-react'
 
-// Form validation schema
-const loginSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(6, 'Password must be at least 6 characters'),
-  rememberMe: z.boolean().optional()
-})
-
-type LoginFormData = z.infer<typeof loginSchema>
-
-function LoginForm() {
+export default function LoginPage() {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [socialLoading, setSocialLoading] = useState<'google' | 'github' | null>(null)
-  const { signIn, signInWithGoogle, signInWithGitHub, loading } = useAuth()
-  const handlePostLoginRedirect = usePostLoginRedirect()
-  const searchParams = useSearchParams()
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+  
+  const { signIn, isAuthenticated, loading, error } = useAuth()
+  const router = useRouter()
 
-  // Check for OAuth error in URL params
+  // Redirect if already authenticated
   useEffect(() => {
-    const errorParam = searchParams.get('error')
-    if (errorParam) {
-      setError(decodeURIComponent(errorParam))
+    if (!loading && isAuthenticated) {
+      router.push('/dashboard')
     }
-  }, [searchParams])
+  }, [isAuthenticated, loading, router])
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors, isSubmitting }
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      rememberMe: true
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setFormError(null)
+    setIsSubmitting(true)
+
+    // Basic validation
+    if (!email || !password) {
+      setFormError('Please fill in all fields')
+      setIsSubmitting(false)
+      return
     }
-  })
 
-  const onSubmit = async (data: LoginFormData) => {
+    if (!email.includes('@')) {
+      setFormError('Please enter a valid email address')
+      setIsSubmitting(false)
+      return
+    }
+
     try {
-      setError(null)
-      await signIn(data.email, data.password)
-      handlePostLoginRedirect()
+      const { error } = await signIn(email, password)
+      
+      if (error) {
+        setFormError(error.message)
+      } else {
+        // Success - redirect will happen via useEffect
+        router.push('/dashboard')
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Invalid email or password')
+      setFormError('An unexpected error occurred. Please try again.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  const handleGoogleSignIn = async () => {
-    try {
-      setError(null)
-      setSocialLoading('google')
-      
-      // Store redirect path before OAuth flow
-      const redirectPath = sessionStorage.getItem('redirectAfterLogin')
-      if (redirectPath) {
-        sessionStorage.setItem('oauthRedirectPath', redirectPath)
-      }
-      
-      await signInWithGoogle()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign in with Google')
-      setSocialLoading(null)
-    }
+  // Show loading while checking auth state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Loading...</span>
+        </div>
+      </div>
+    )
   }
 
-  const handleGitHubSignIn = async () => {
-    try {
-      setError(null)
-      setSocialLoading('github')
-      
-      // Store redirect path before OAuth flow
-      const redirectPath = sessionStorage.getItem('redirectAfterLogin')
-      if (redirectPath) {
-        sessionStorage.setItem('oauthRedirectPath', redirectPath)
-      }
-      
-      await signInWithGitHub()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign in with GitHub')
-      setSocialLoading(null)
-    }
+  // Don't render form if already authenticated
+  if (isAuthenticated) {
+    return null
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      {/* Header */}
-      <header className="bg-white border-b">
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <Link href="/" className="flex items-center">
-              <span className="text-2xl font-bold text-[var(--primary)]">
-                Lendify
-              </span>
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="flex-1 flex items-center justify-center px-4 sm:px-6 lg:px-8">
-        <div className="w-full max-w-md space-y-8">
-          {/* Title Section */}
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900">Welcome back</h1>
-            <p className="mt-2 text-sm text-gray-600">
-              Don&apos;t have an account?{' '}
-              <Link href="/signup" className="font-medium text-[var(--primary)] hover:underline">
-                Sign up
-              </Link>
-            </p>
-          </div>
-
-          {/* Login Form */}
-          <div className="bg-white py-8 px-6 shadow-lg rounded-2xl">
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-              {error && (
-                <Alert variant="error">
-                  {error}
-                </Alert>
-              )}
-
-              <FormInput
-                id="email"
-                type="email"
-                label="Email address"
-                placeholder="Enter your email"
-                error={errors.email?.message}
-                {...register('email')}
-              />
-
-              <div className="relative">
-                <FormInput
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  label="Password"
-                  placeholder="Enter your password"
-                  error={errors.password?.message}
-                  {...register('password')}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-4 top-[38px] text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                </button>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 text-[var(--primary)] focus:ring-[var(--primary)] border-gray-300 rounded"
-                    {...register('rememberMe')}
-                  />
-                  <span className="ml-2 text-sm text-gray-600">Remember me</span>
-                </label>
-
-                <Link
-                  href="/forgot-password"
-                  className="text-sm font-medium text-[var(--primary)] hover:underline"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-
-              <LoadingButton
-                type="submit"
-                loading={isSubmitting || loading}
-                className="w-full"
-              >
-                Sign in
-              </LoadingButton>
-            </form>
-
-            {/* Divider */}
-            <div className="mt-6">
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300" />
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">Or continue with</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Social Login Buttons */}
-            <div className="mt-6 grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={socialLoading !== null || loading}
-                className="w-full inline-flex justify-center items-center px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path
-                    fill="currentColor"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  />
-                  <path
-                    fill="currentColor"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-                {socialLoading === 'google' ? (
-                  <svg className="ml-2 h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                ) : (
-                  <span className="ml-2">Google</span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleGitHubSignIn}
-                disabled={socialLoading !== null || loading}
-                className="w-full inline-flex justify-center items-center px-4 py-3 border border-gray-300 rounded-lg shadow-sm bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path
-                    fillRule="evenodd"
-                    d="M10 0C4.477 0 0 4.484 0 10.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0110 4.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.203 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.942.359.31.678.921.678 1.856 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0020 10.017C20 4.484 15.522 0 10 0z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                {socialLoading === 'github' ? (
-                  <svg className="ml-2 h-4 w-4 animate-spin" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                ) : (
-                  <span className="ml-2">GitHub</span>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Terms */}
-          <p className="text-center text-xs text-gray-500">
-            By signing in, you agree to our{' '}
-            <Link href="/terms" className="underline">
-              Terms of Service
-            </Link>{' '}
-            and{' '}
-            <Link href="/privacy" className="underline">
-              Privacy Policy
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        {/* Header */}
+        <div className="text-center">
+          <Link href="/" className="inline-block">
+            <span className="text-3xl font-bold text-[var(--primary)]">
+              Lendify
+            </span>
+          </Link>
+          <h2 className="mt-6 text-3xl font-extrabold text-gray-900">
+            Sign in to your account
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Or{' '}
+            <Link
+              href="/signup"
+              className="font-medium text-[var(--primary)] hover:text-[var(--primary)]/80"
+            >
+              create a new account
             </Link>
           </p>
         </div>
-      </main>
-    </div>
-  )
-}
 
-export default function LoginPage() {
-  return (
-    <Suspense fallback={<div className="min-h-screen flex items-center justify-center"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div></div>}>
-      <LoginForm />
-    </Suspense>
+        {/* Form */}
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {/* Error Display */}
+          {(formError || error) && (
+            <div className="rounded-md bg-red-50 p-4">
+              <div className="flex">
+                <AlertCircle className="h-5 w-5 text-red-400" />
+                <div className="ml-3">
+                  <h3 className="text-sm font-medium text-red-800">
+                    {formError || error}
+                  </h3>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {/* Email Field */}
+            <div>
+              <label htmlFor="email" className="sr-only">
+                Email address
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Mail className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  autoComplete="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="appearance-none relative block w-full pl-10 pr-3 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] focus:z-10 sm:text-sm"
+                  placeholder="Email address"
+                  disabled={isSubmitting}
+                />
+              </div>
+            </div>
+
+            {/* Password Field */}
+            <div>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Lock className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="appearance-none relative block w-full pl-10 pr-10 py-3 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-lg focus:outline-none focus:ring-[var(--primary)] focus:border-[var(--primary)] focus:z-10 sm:text-sm"
+                  placeholder="Password"
+                  disabled={isSubmitting}
+                />
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isSubmitting}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                  ) : (
+                    <Eye className="h-5 w-5 text-gray-400 hover:text-gray-600" />
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Options */}
+          <div className="flex items-center justify-between">
+            <div className="text-sm">
+              <Link
+                href="/forgot-password"
+                className="font-medium text-[var(--primary)] hover:text-[var(--primary)]/80"
+              >
+                Forgot your password?
+              </Link>
+            </div>
+          </div>
+
+          {/* Submit Button */}
+          <div>
+            <button
+              type="submit"
+              disabled={isSubmitting || !email || !password}
+              className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-[var(--primary)] hover:bg-[var(--primary)]/90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                'Sign in'
+              )}
+            </button>
+          </div>
+
+          {/* Sign up link */}
+          <div className="text-center">
+            <p className="text-sm text-gray-600">
+              Don't have an account?{' '}
+              <Link
+                href="/signup"
+                className="font-medium text-[var(--primary)] hover:text-[var(--primary)]/80"
+              >
+                Sign up here
+              </Link>
+            </p>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 import { authenticateRequest } from '@/lib/api/auth'
 import { 
   handleAPIError, 
@@ -45,7 +46,7 @@ type PublicProfile = Pick<
 /**
  * GET /api/users/[id] - Get public user profile
  */
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -210,3 +211,6 @@ export async function OPTIONS() {
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
+
+// Export wrapped handlers with middleware
+export const GET = withMiddleware(apiMiddleware.authenticated(), handleGET)

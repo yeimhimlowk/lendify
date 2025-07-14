@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
+// import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware' // Removed for auth cleanup
 import { handleAPIError } from '@/lib/api/errors'
 import { 
   createSuccessResponse,
@@ -18,7 +19,7 @@ import {
  * 4. Owner verification status
  * 5. Complete listing information (photos, description, etc.)
  */
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     logAPIRequest(request, 'GET_FEATURED_LISTINGS')
@@ -26,7 +27,9 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(parseInt(searchParams.get('limit') || '12'), 50)
     const category = searchParams.get('category')
 
-    const supabase = await createServerSupabaseClient()
+    // TODO: Replace with direct database access - auth removed
+    // const supabase = await createServerSupabaseClient()
+    throw new Error('Database access temporarily disabled - authentication removed')
 
     // Build featured listings query with simpler criteria to avoid database errors
     let query = supabase
@@ -170,3 +173,6 @@ export async function OPTIONS() {
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
+
+// Export wrapped handlers with middleware
+export const GET = withMiddleware(apiMiddleware.public(), handleGET)

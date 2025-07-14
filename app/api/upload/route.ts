@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
 
@@ -85,7 +86,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+async function handleDELETE(request: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient()
 
@@ -137,3 +138,7 @@ export async function DELETE(request: NextRequest) {
     )
   }
 }
+
+// Export wrapped handlers with middleware
+export const POST = withMiddleware(apiMiddleware.authenticated(), handlePOST)
+export const DELETE = withMiddleware(apiMiddleware.authenticated(), handleDELETE)

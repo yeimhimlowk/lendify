@@ -1,98 +1,135 @@
 'use client'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuthContext } from './auth-context'
+import { useEffect, useState } from 'react'
+import { User } from '@supabase/supabase-js'
+import { getSupabaseClient } from '@/lib/supabase/client'
+import type { Profile } from '@/lib/supabase/types'
 
-/**
- * Hook to access the auth context
- * @returns The auth context with user, profile, loading state, and auth methods
- */
+interface AuthState {
+  user: User | null
+  profile: Profile | null
+  loading: boolean
+  error: string | null
+}
+
 export function useAuth() {
-  const context = useAuthContext()
-  return context
-}
+  const [authState, setAuthState] = useState<AuthState>({
+    user: null,
+    profile: null,
+    loading: true,
+    error: null
+  })
 
-/**
- * Hook to get the current user with profile data
- * @returns Object containing user, profile, and loading state
- */
-export function useUser() {
-  const { user, profile, loading } = useAuthContext()
-  
-  return {
-    user,
-    profile,
-    loading,
-    isAuthenticated: !!user,
-  }
-}
+  const supabase = getSupabaseClient()
 
-/**
- * Hook that redirects to login page if user is not authenticated
- * @param redirectTo - Optional path to redirect to after login (default: current path)
- * @returns Object containing user, profile, and loading state
- */
-export function useRequireAuth(redirectTo?: string) {
-  const router = useRouter()
-  const { user, profile, loading } = useAuthContext()
-  
   useEffect(() => {
-    if (!loading && !user) {
-      // Store the intended destination in sessionStorage for post-login redirect
-      if (redirectTo || window.location.pathname !== '/') {
-        sessionStorage.setItem(
-          'redirectAfterLogin', 
-          redirectTo || window.location.pathname
-        )
+    // Get initial session
+    const getInitialSession = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          setAuthState(prev => ({ ...prev, error: error.message, loading: false }))
+          return
+        }
+
+        if (session?.user) {
+          // Get user profile
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+
+          if (profileError && profileError.code !== 'PGRST116') {
+            console.error('Error fetching profile:', profileError)
+          }
+
+          setAuthState({
+            user: session.user,
+            profile: profile || null,
+            loading: false,
+            error: null
+          })
+        } else {
+          setAuthState({
+            user: null,
+            profile: null,
+            loading: false,
+            error: null
+          })
+        }
+      } catch (err) {
+        console.error('Error getting initial session:', err)
+        setAuthState(prev => ({ 
+          ...prev, 
+          error: err instanceof Error ? err.message : 'Unknown error',
+          loading: false 
+        }))
       }
-      
-      router.push('/login')
     }
-  }, [user, loading, router, redirectTo])
-  
-  return {
-    user,
-    profile,
-    loading,
-    isAuthenticated: !!user,
-  }
-}
 
-/**
- * Hook to check if user has a complete profile
- * @returns Object indicating if profile is complete and what fields are missing
- */
-export function useProfileComplete() {
-  const { profile, loading } = useAuthContext()
-  
-  const requiredFields = ['full_name', 'phone', 'address'] as const
-  const missingFields = requiredFields.filter(field => !profile?.[field])
-  
-  return {
-    isComplete: missingFields.length === 0,
-    missingFields,
-    loading,
-    profile,
-  }
-}
+    getInitialSession()
 
-/**
- * Hook to handle post-login redirect
- * @returns Function to handle redirect after successful login
- */
-export function usePostLoginRedirect() {
-  const router = useRouter()
-  
-  const handleRedirect = () => {
-    const redirectPath = sessionStorage.getItem('redirectAfterLogin')
-    if (redirectPath) {
-      sessionStorage.removeItem('redirectAfterLogin')
-      router.push(redirectPath)
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          // Get user profile
+          const { data: profile, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single()
+
+          if (profileError && profileError.code !== 'PGRST116') {
+            console.error('Error fetching profile:', profileError)
+          }
+
+          setAuthState({
+            user: session.user,
+            profile: profile || null,
+            loading: false,
+            error: null
+          })
+        } else {
+          setAuthState({
+            user: null,
+            profile: null,
+            loading: false,
+            error: null
+          })
+        }
+      }
+    )
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [supabase])
+
+  const signOut = async () => {
+    setAuthState(prev => ({ ...prev, loading: true }))
+    const { error } = await supabase.auth.signOut()
+    
+    if (error) {
+      setAuthState(prev => ({ ...prev, error: error.message, loading: false }))
     } else {
-      router.push('/dashboard')
+      setAuthState({
+        user: null,
+        profile: null,
+        loading: false,
+        error: null
+      })
     }
   }
-  
-  return handleRedirect
+
+  return {
+    ...authState,
+    signOut,
+    isAuthenticated: !!authState.user
+  }
 }
+
+// Alias for backwards compatibility
+export const useUser = useAuth

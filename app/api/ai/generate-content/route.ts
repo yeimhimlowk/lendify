@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/api/auth'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 import { 
   handleAPIError, 
   handleAuthError, 
@@ -27,18 +27,24 @@ interface ContentGenerationResult {
 /**
  * POST /api/ai/generate-content - Generate AI-powered content for listings
  */
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     logAPIRequest(request, 'AI_GENERATE_CONTENT')
 
     // Require authentication
-    const user = await requireAuth(request)
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Parse and validate request body
     const body = await request.json()
     const validatedData: GenerateContentInput = generateContentSchema.parse(body)
-
-    const supabase = await createServerSupabaseClient()
 
     // Generate content based on type
     let result: ContentGenerationResult
@@ -319,3 +325,6 @@ export async function OPTIONS() {
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
+
+// Export wrapped handlers with middleware
+export const POST = withMiddleware(apiMiddleware.ai(), handlePOST)

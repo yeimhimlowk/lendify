@@ -3,18 +3,19 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { useAuthContext } from '@/lib/auth/auth-context'
-import { LoadingButton } from '@/components/ui/loading-button'
-import { Alert } from '@/components/ui/alert'
-import { Mail, CheckCircle, ArrowRight } from 'lucide-react'
+import { useAuth } from '@/lib/auth/auth-context'
+import { createClient } from '@/lib/supabase/client'
+import { Mail, CheckCircle, ArrowRight, Loader2, AlertCircle } from 'lucide-react'
 
 export default function VerifyEmailPage() {
-  const { user, isEmailVerified, resendVerificationEmail, loading } = useAuthContext()
+  const { user, loading } = useAuth()
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [resending, setResending] = useState(false)
   const [countdown, setCountdown] = useState(0)
   const router = useRouter()
+  
+  const isEmailVerified = user?.email_confirmed_at ? true : false
 
   // Redirect if already verified or not logged in
   useEffect(() => {
@@ -36,15 +37,28 @@ export default function VerifyEmailPage() {
   }, [countdown])
 
   const handleResendEmail = async () => {
+    if (!user?.email) {
+      setError('No email address found')
+      return
+    }
+
     try {
       setError(null)
       setSuccess(null)
       setResending(true)
       
-      await resendVerificationEmail()
-      
-      setSuccess('Verification email sent! Please check your inbox.')
-      setCountdown(60) // 60 second cooldown
+      const supabase = createClient()
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: user.email
+      })
+
+      if (error) {
+        setError(error.message)
+      } else {
+        setSuccess('Verification email sent! Please check your inbox.')
+        setCountdown(60) // 60 second cooldown
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to resend verification email')
     } finally {
@@ -56,7 +70,10 @@ export default function VerifyEmailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[var(--primary)]"></div>
+        <div className="flex items-center gap-2">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Loading...</span>
+        </div>
       </div>
     )
   }
@@ -116,34 +133,49 @@ export default function VerifyEmailPage() {
 
             {/* Alerts */}
             {error && (
-              <Alert variant="error">
-                {error}
-              </Alert>
+              <div className="rounded-md bg-red-50 p-4">
+                <div className="flex">
+                  <AlertCircle className="h-5 w-5 text-red-400" />
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-red-800">
+                      {error}
+                    </p>
+                  </div>
+                </div>
+              </div>
             )}
 
             {success && (
-              <Alert variant="success">
-                <div className="flex items-center">
-                  <CheckCircle className="h-5 w-5 mr-2" />
-                  {success}
+              <div className="rounded-md bg-green-50 p-4">
+                <div className="flex">
+                  <CheckCircle className="h-5 w-5 text-green-400" />
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-green-800">
+                      {success}
+                    </p>
+                  </div>
                 </div>
-              </Alert>
+              </div>
             )}
 
             {/* Resend Button */}
             <div className="space-y-4">
-              <LoadingButton
+              <button
                 onClick={handleResendEmail}
-                loading={resending}
-                disabled={countdown > 0}
-                variant="outline"
-                className="w-full"
+                disabled={resending || countdown > 0}
+                className="w-full flex justify-center items-center py-3 px-4 border border-gray-300 text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--primary)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {countdown > 0
-                  ? `Resend in ${countdown}s`
-                  : 'Resend verification email'
-                }
-              </LoadingButton>
+                {resending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : countdown > 0 ? (
+                  `Resend in ${countdown}s`
+                ) : (
+                  'Resend verification email'
+                )}
+              </button>
 
               <div className="text-sm text-gray-600">
                 Wrong email?{' '}

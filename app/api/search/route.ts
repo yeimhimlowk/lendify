@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+// import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 import { handleAPIError, handleValidationError } from '@/lib/api/errors'
 import { 
   createPaginatedResponse,
@@ -56,6 +57,7 @@ export async function GET(request: NextRequest) {
     
     const query: SearchQuery = searchQuerySchema.parse(cleanParams)
 
+    // Use server client for search operations
     const supabase = await createServerSupabaseClient()
 
     // Build base query

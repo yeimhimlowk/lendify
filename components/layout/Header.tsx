@@ -5,14 +5,13 @@ import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { Search, Menu, User, Globe, Loader2 } from "lucide-react"
-import { useUser, useAuth } from "@/lib/auth/use-auth"
+import { useAuth } from "@/lib/auth/auth-context"
 
 export default function Header() {
   const [showUserMenu, setShowUserMenu] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchLocation, setSearchLocation] = useState("")
-  const { user, profile, loading, isAuthenticated } = useUser()
-  const { signOut } = useAuth()
+  const { user, profile, loading, isAuthenticated, signOut } = useAuth()
   const router = useRouter()
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -33,10 +32,16 @@ export default function Header() {
   // Handle logout
   const handleLogout = async () => {
     try {
-      await signOut()
+      const { error } = await signOut()
+      if (error) {
+        console.error('Logout error:', error)
+      } else {
+        router.push('/')
+      }
+    } catch (err) {
+      console.error('Unexpected logout error:', err)
+    } finally {
       setShowUserMenu(false)
-    } catch (error) {
-      console.error('Logout error:', error)
     }
   }
 

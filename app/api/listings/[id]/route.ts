@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { authenticateRequest, requireAuth, checkOwnership } from '@/lib/api/auth'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
+// Auth functions replaced with inline middleware authentication
 import { 
   handleAPIError, 
   handleAuthError, 
@@ -46,7 +47,7 @@ type ListingWithDetails = Listing & {
 /**
  * GET /api/listings/[id] - Get single listing by ID
  */
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -158,7 +159,7 @@ export async function GET(
 /**
  * PUT /api/listings/[id] - Update listing
  */
-export async function PUT(
+async function handlePUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -167,7 +168,15 @@ export async function PUT(
     logAPIRequest(request, 'UPDATE_LISTING')
 
     // Require authentication
-    const user = await requireAuth(request)
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Validate UUID format
     const listingId = uuidSchema.parse(id)
@@ -175,8 +184,6 @@ export async function PUT(
     // Parse and validate request body
     const body = await request.json()
     const validatedData: UpdateListingInput = updateListingSchema.parse(body)
-
-    const supabase = await createServerSupabaseClient()
 
     // Check if listing exists and user owns it
     const { data: existingListing, error: fetchError } = await supabase
@@ -263,7 +270,7 @@ export async function PUT(
 /**
  * DELETE /api/listings/[id] - Delete listing
  */
-export async function DELETE(
+async function handleDELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -272,12 +279,18 @@ export async function DELETE(
     logAPIRequest(request, 'DELETE_LISTING')
 
     // Require authentication
-    const user = await requireAuth(request)
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Validate UUID format
     const listingId = uuidSchema.parse(id)
-
-    const supabase = await createServerSupabaseClient()
 
     // Check if listing exists and user owns it
     const { data: existingListing, error: fetchError } = await supabase
@@ -361,3 +374,8 @@ export async function OPTIONS() {
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
+
+// Export wrapped handlers with middleware
+export const GET = withMiddleware(apiMiddleware.authenticated(), handleGET)
+export const PUT = withMiddleware(apiMiddleware.authenticated(), handlePUT)
+export const DELETE = withMiddleware(apiMiddleware.authenticated(), handleDELETE)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 import { handleAPIError, handleValidationError } from '@/lib/api/errors'
 import { 
   createSuccessResponse,
@@ -23,7 +24,7 @@ interface Suggestion {
 /**
  * GET /api/search/suggestions - Get search autocomplete suggestions
  */
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     logAPIRequest(request, 'SEARCH_SUGGESTIONS')
@@ -239,3 +240,6 @@ export async function OPTIONS() {
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
+
+// Export wrapped handlers with middleware
+export const GET = withMiddleware(apiMiddleware.public(), handleGET)

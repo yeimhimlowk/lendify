@@ -154,6 +154,7 @@ export async function checkAuthFlow() {
   } catch (err) {
     return {
       available: false,
+      hasUser: false,
       error: {
         message: err instanceof Error ? err.message : 'Auth check failed',
         code: 'AUTH_CHECK_FAILED'

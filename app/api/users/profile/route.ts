@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/api/auth'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 import { 
   handleAPIError, 
   handleAuthError, 
@@ -33,13 +33,21 @@ type ProfileWithStats = Profile & {
 /**
  * GET /api/users/profile - Get current user's profile
  */
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     logAPIRequest(request, 'GET_USER_PROFILE')
 
-    // Require authentication
-    const user = await requireAuth(request)
+    // Get authenticated user
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Parse query parameters
     // Filter out null values to prevent Zod coercion errors
@@ -54,8 +62,6 @@ export async function GET(request: NextRequest) {
     )
     
     const query = userQuerySchema.parse(cleanParams)
-
-    const supabase = await createServerSupabaseClient()
 
     // Get user profile
     const { data: profile, error } = await supabase
@@ -153,18 +159,24 @@ export async function GET(request: NextRequest) {
 /**
  * PUT /api/users/profile - Update current user's profile
  */
-export async function PUT(request: NextRequest) {
+async function handlePUT(request: NextRequest) {
   try {
     logAPIRequest(request, 'UPDATE_USER_PROFILE')
 
-    // Require authentication
-    const user = await requireAuth(request)
+    // Get authenticated user
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Parse and validate request body
     const body = await request.json()
     const validatedData: UpdateProfileInput = updateProfileSchema.parse(body)
-
-    const supabase = await createServerSupabaseClient()
 
     // Prepare update data
     const updateData: any = {
@@ -229,3 +241,7 @@ export async function OPTIONS() {
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
+
+// Export wrapped handlers with middleware
+export const GET = withMiddleware(apiMiddleware.authenticated(), handleGET)
+export const PUT = withMiddleware(apiMiddleware.authenticated(), handlePUT)

@@ -41,6 +41,47 @@ export type Database = {
           },
         ]
       }
+      ai_usage_logs: {
+        Row: {
+          action: string
+          content_type: string | null
+          created_at: string
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          success: boolean | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          content_type?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          success?: boolean | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          content_type?: string | null
+          created_at?: string
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          success?: boolean | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_usage_logs_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bookings: {
         Row: {
           created_at: string | null
@@ -96,47 +137,6 @@ export type Database = {
           {
             foreignKeyName: "bookings_renter_id_fkey"
             columns: ["renter_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      ai_usage_logs: {
-        Row: {
-          action: string
-          content_type: string | null
-          created_at: string
-          error_message: string | null
-          id: string
-          metadata: Json | null
-          success: boolean | null
-          user_id: string | null
-        }
-        Insert: {
-          action: string
-          content_type?: string | null
-          created_at?: string
-          error_message?: string | null
-          id?: string
-          metadata?: Json | null
-          success?: boolean | null
-          user_id?: string | null
-        }
-        Update: {
-          action?: string
-          content_type?: string | null
-          created_at?: string
-          error_message?: string | null
-          id?: string
-          metadata?: Json | null
-          success?: boolean | null
-          user_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ai_usage_logs_user_id_fkey"
-            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -512,9 +512,26 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      listing_stats: {
+        Row: {
+          avg_rating: number | null
+          clicks_last_30_days: number | null
+          listing_id: string | null
+          review_count: number | null
+          successful_bookings: number | null
+          total_bookings: number | null
+          views_last_30_days: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      increment_listing_views: {
+        Args: {
+          listing_id: string
+        }
+        Returns: undefined
+      }
       listings_within_radius: {
         Args: {
           lat: number
@@ -522,42 +539,114 @@ export type Database = {
           radius_meters: number
         }
         Returns: {
-          id: string
-          title: string
-          description: string | null
-          price_per_day: number
-          price_per_week: number | null
-          price_per_month: number | null
-          deposit_amount: number | null
-          condition: string | null
           address: string | null
-          photos: string[] | null
-          tags: string[] | null
-          availability: Json | null
-          status: string | null
-          category_id: string | null
-          owner_id: string
-          ai_generated_title: string | null
           ai_generated_description: string | null
+          ai_generated_title: string | null
           ai_price_suggestion: number | null
+          availability: Json | null
+          category_id: string | null
+          condition: string | null
           created_at: string | null
-          updated_at: string | null
+          deposit_amount: number | null
+          description: string | null
+          id: string
           location: unknown | null
+          owner_id: string
+          photos: string[] | null
+          price_per_day: number | null
+          price_per_month: number | null
+          price_per_week: number | null
+          status: string | null
+          tags: string[] | null
+          title: string | null
+          updated_at: string | null
         }[]
-      }
-      increment_listing_views: {
-        Args: {
-          listing_id: string
-        }
-        Returns: void
       }
     }
     Enums: {
       [_ in never]: never
     }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
 }
 
-export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
-export type TablesInsert<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert']
-export type TablesUpdate<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update']
+// Utility types for common operations
+export type Profile = Database['public']['Tables']['profiles']['Row']
+export type ProfileInsert = Database['public']['Tables']['profiles']['Insert']
+export type ProfileUpdate = Database['public']['Tables']['profiles']['Update']
+
+export type Listing = Database['public']['Tables']['listings']['Row']
+export type ListingInsert = Database['public']['Tables']['listings']['Insert']
+export type ListingUpdate = Database['public']['Tables']['listings']['Update']
+
+export type Category = Database['public']['Tables']['categories']['Row']
+export type CategoryInsert = Database['public']['Tables']['categories']['Insert']
+export type CategoryUpdate = Database['public']['Tables']['categories']['Update']
+
+export type Booking = Database['public']['Tables']['bookings']['Row']
+export type BookingInsert = Database['public']['Tables']['bookings']['Insert']
+export type BookingUpdate = Database['public']['Tables']['bookings']['Update']
+
+export type Review = Database['public']['Tables']['reviews']['Row']
+export type ReviewInsert = Database['public']['Tables']['reviews']['Insert']
+export type ReviewUpdate = Database['public']['Tables']['reviews']['Update']
+
+export type Message = Database['public']['Tables']['messages']['Row']
+export type MessageInsert = Database['public']['Tables']['messages']['Insert']
+export type MessageUpdate = Database['public']['Tables']['messages']['Update']
+
+export type ChatSession = Database['public']['Tables']['chat_sessions']['Row']
+export type ChatSessionInsert = Database['public']['Tables']['chat_sessions']['Insert']
+export type ChatSessionUpdate = Database['public']['Tables']['chat_sessions']['Update']
+
+export type ListingAnalytics = Database['public']['Tables']['listing_analytics']['Row']
+export type ListingAnalyticsInsert = Database['public']['Tables']['listing_analytics']['Insert']
+export type ListingAnalyticsUpdate = Database['public']['Tables']['listing_analytics']['Update']
+
+export type AIUsageLog = Database['public']['Tables']['ai_usage_logs']['Row']
+export type AIUsageLogInsert = Database['public']['Tables']['ai_usage_logs']['Insert']
+export type AIUsageLogUpdate = Database['public']['Tables']['ai_usage_logs']['Update']
+
+export type SearchAnalytics = Database['public']['Tables']['search_analytics']['Row']
+export type SearchAnalyticsInsert = Database['public']['Tables']['search_analytics']['Insert']
+export type SearchAnalyticsUpdate = Database['public']['Tables']['search_analytics']['Update']
+
+export type AIAnalysisCache = Database['public']['Tables']['ai_analysis_cache']['Row']
+export type AIAnalysisCacheInsert = Database['public']['Tables']['ai_analysis_cache']['Insert']
+export type AIAnalysisCacheUpdate = Database['public']['Tables']['ai_analysis_cache']['Update']
+
+export type ListingStats = Database['public']['Views']['listing_stats']['Row']
+
+// Extended types with joins
+export type ListingWithCategory = Listing & {
+  category: Category | null
+}
+
+export type ListingWithOwner = Listing & {
+  owner: Profile
+}
+
+export type ListingWithDetails = Listing & {
+  category: Category | null
+  owner: Profile
+  stats?: ListingStats
+}
+
+export type BookingWithDetails = Booking & {
+  listing: Listing
+  renter: Profile
+  owner: Profile
+}
+
+export type ReviewWithDetails = Review & {
+  reviewer: Profile
+  reviewee: Profile
+  booking: Booking
+}
+
+// Status enums (based on check constraints in the schema)
+export type ListingStatus = 'active' | 'inactive' | 'pending' | 'deleted'
+export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'completed'
+export type ItemCondition = 'new' | 'like_new' | 'good' | 'fair' | 'poor'

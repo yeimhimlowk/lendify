@@ -1,83 +1,166 @@
 import { NextRequest } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { Database } from '@/lib/supabase/types'
+import { User } from '@supabase/supabase-js'
+import type { Profile } from '@/lib/supabase/types'
 
-type User = Database['public']['Tables']['profiles']['Row']
-
-/**
- * Authentication result containing user data or error
- */
-export interface AuthResult {
-  user: User | null
-  error: string | null
+export interface AuthenticatedUser extends User {
+  profile?: Profile
 }
 
 /**
- * Authenticates a request and returns user data
- * @param _request - The Next.js request object (prefixed with _ as it might be used in future)
- * @returns Promise<AuthResult> - Authentication result
+ * Middleware function to require authentication for API routes.
+ * Throws an error if user is not authenticated.
+ * 
+ * @param request - The Next.js request object
+ * @returns The authenticated user
+ * @throws Error if authentication fails
  */
-export async function authenticateRequest(_request: NextRequest): Promise<AuthResult> {
+export async function requireAuth(_request: NextRequest): Promise<AuthenticatedUser> {
+  const supabase = await createServerSupabaseClient()
+  
+  const { data: { user }, error } = await supabase.auth.getUser()
+  
+  if (error) {
+    throw new Error(`Authentication failed: ${error.message}`)
+  }
+  
+  if (!user) {
+    throw new Error('Authentication required')
+  }
+  
+  return user as AuthenticatedUser
+}
+
+/**
+ * Middleware function to get the current user without requiring authentication.
+ * Returns null if user is not authenticated.
+ * 
+ * @param request - The Next.js request object
+ * @returns The authenticated user or null
+ */
+export async function getCurrentUser(_request: NextRequest): Promise<AuthenticatedUser | null> {
   try {
     const supabase = await createServerSupabaseClient()
     
-    // Get user from Supabase Auth
-    const { data: { user: authUser }, error: authError } = await supabase.auth.getUser()
+    const { data: { user }, error } = await supabase.auth.getUser()
     
-    if (authError || !authUser) {
-      return {
-        user: null,
-        error: 'Authentication required'
-      }
+    if (error || !user) {
+      return null
     }
-
-    // Get full user profile
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', authUser.id)
-      .single()
-
-    if (profileError || !profile) {
-      return {
-        user: null,
-        error: 'User profile not found'
-      }
-    }
-
-    return {
-      user: profile,
-      error: null
-    }
-  } catch (_error) {
-    return {
-      user: null,
-      error: 'Authentication failed'
-    }
+    
+    return user as AuthenticatedUser
+  } catch {
+    return null
   }
 }
 
 /**
- * Middleware function to require authentication
- * @param _request - The Next.js request object (prefixed with _ as it might be used in future)
- * @returns Promise<User> - Authenticated user or throws error
+ * Middleware function to require authentication and fetch user profile.
+ * 
+ * @param request - The Next.js request object
+ * @returns The authenticated user with profile
+ * @throws Error if authentication fails or profile not found
  */
-export async function requireAuth(_request: NextRequest): Promise<User> {
-  const { user, error } = await authenticateRequest(_request)
+export async function requireAuthWithProfile(request: NextRequest): Promise<AuthenticatedUser> {
+  const user = await requireAuth(request)
+  const supabase = await createServerSupabaseClient()
   
-  if (error || !user) {
-    throw new Error(error || 'Authentication required')
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single()
+  
+  if (error) {
+    throw new Error(`Failed to fetch user profile: ${error.message}`)
+  }
+  
+  if (!profile) {
+    throw new Error('User profile not found')
+  }
+  
+  return {
+    ...user,
+    profile
+  } as AuthenticatedUser
+}
+
+/**
+ * Check if a user has admin privileges.
+ * For now, this is a placeholder - implement based on your admin logic.
+ * 
+ * @param user - The authenticated user
+ * @returns Whether the user is an admin
+ */
+export function isAdmin(_user: AuthenticatedUser): boolean {
+  // TODO: Implement admin check based on your requirements
+  // This could check a role field in the user metadata or profile
+  return false
+}
+
+/**
+ * Require admin authentication for API routes.
+ * 
+ * @param request - The Next.js request object
+ * @returns The authenticated admin user
+ * @throws Error if authentication fails or user is not admin
+ */
+export async function requireAdminAuth(request: NextRequest): Promise<AuthenticatedUser> {
+  const user = await requireAuthWithProfile(request)
+  
+  if (!isAdmin(user)) {
+    throw new Error('Admin privileges required')
   }
   
   return user
 }
 
 /**
- * Check if user owns a resource
- * @param userId - User ID to check
- * @param resourceOwnerId - Resource owner ID
- * @returns boolean - True if user owns the resource
+ * Extract authorization token from request headers.
+ * 
+ * @param request - The Next.js request object
+ * @returns The authorization token or null
  */
-export function checkOwnership(userId: string, resourceOwnerId: string): boolean {
-  return userId === resourceOwnerId
+export function getAuthToken(request: NextRequest): string | null {
+  const authHeader = request.headers.get('authorization')
+  
+  if (!authHeader) {
+    return null
+  }
+  
+  if (authHeader.startsWith('Bearer ')) {
+    return authHeader.substring(7)
+  }
+  
+  return authHeader
+}
+
+/**
+ * Get user ID from authenticated user or throw error.
+ * 
+ * @param request - The Next.js request object
+ * @returns The user ID
+ * @throws Error if user is not authenticated
+ */
+export async function getUserId(request: NextRequest): Promise<string> {
+  const user = await requireAuth(request)
+  return user.id
+}
+
+/**
+ * Alias for requireAuth for backwards compatibility.
+ */
+export const authenticateRequest = requireAuth
+
+/**
+ * Check if the authenticated user owns a resource.
+ * 
+ * @param request - The Next.js request object
+ * @param resourceOwnerId - The ID of the resource owner
+ * @returns Whether the user owns the resource
+ * @throws Error if user is not authenticated
+ */
+export async function checkOwnership(request: NextRequest, resourceOwnerId: string): Promise<boolean> {
+  const user = await requireAuth(request)
+  return user.id === resourceOwnerId
 }

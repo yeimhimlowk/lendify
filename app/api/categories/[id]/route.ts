@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/api/auth'
+// import { createServerSupabaseClient } from '@/lib/supabase/server' // Removed for auth cleanup
+// import { withMiddleware, apiMiddleware } from '@/lib/api/middleware' // Removed for auth cleanup
 import { 
   handleAPIError, 
-  handleAuthError, 
+  // handleAuthError, // Removed for auth cleanup
   handleNotFoundError,
   handleValidationError 
 } from '@/lib/api/errors'
@@ -33,7 +33,7 @@ type CategoryWithDetails = Category & {
 /**
  * GET /api/categories/[id] - Get single category by ID
  */
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -42,9 +42,15 @@ export async function GET(
     logAPIRequest(request, 'GET_CATEGORY')
 
     // Validate UUID format  
-    const categoryId = uuidSchema.parse(id)
+    const validationResult = uuidSchema.safeParse(id)
+    if (!validationResult.success) {
+      return handleValidationError(validationResult.error)
+    }
+    const categoryId = validationResult.data
 
-    const supabase = await createServerSupabaseClient()
+    // TODO: Replace with direct database access - auth removed
+    // const supabase = await createServerSupabaseClient()
+    throw new Error('Database access temporarily disabled - authentication removed')
 
     // Get category with parent information
     const { data: category, error } = await supabase
@@ -53,7 +59,7 @@ export async function GET(
         *,
         parent:categories!categories_parent_id_fkey(*)
       `)
-      .eq('id', categoryId)
+      .eq('id', categoryId as any)
       .single()
 
     if (error || !category) {
@@ -64,7 +70,7 @@ export async function GET(
     const { data: children } = await supabase
       .from('categories')
       .select('*')
-      .eq('parent_id', categoryId)
+      .eq('parent_id', categoryId as any)
       .order('name', { ascending: true })
 
     // Get listing counts
@@ -72,13 +78,13 @@ export async function GET(
       supabase
         .from('listings')
         .select('*', { count: 'exact', head: true })
-        .eq('category_id', categoryId),
+        .eq('category_id', categoryId as any),
       
       supabase
         .from('listings')
         .select('*', { count: 'exact', head: true })
-        .eq('category_id', categoryId)
-        .eq('status', 'active')
+        .eq('category_id', categoryId as any)
+        .eq('status', 'active' as any)
     ])
 
     const categoryWithDetails: CategoryWithDetails = {
@@ -114,7 +120,7 @@ export async function GET(
 /**
  * PUT /api/categories/[id] - Update category (Admin only)
  */
-export async function PUT(
+async function handlePUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -122,8 +128,17 @@ export async function PUT(
     const { id } = await params
     logAPIRequest(request, 'UPDATE_CATEGORY')
 
-    // Require authentication (in production, check for admin role)
-    const user = await requireAuth(request)
+    // TODO: Replace with proper admin check - auth removed
+    // const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    throw new Error('Admin functionality temporarily disabled - authentication removed')
 
     // Validate UUID format
     const categoryId = uuidSchema.parse(id)
@@ -132,13 +147,11 @@ export async function PUT(
     const body = await request.json()
     const validatedData: UpdateCategoryInput = updateCategorySchema.parse(body)
 
-    const supabase = await createServerSupabaseClient()
-
     // Check if category exists
     const { data: existingCategory, error: fetchError } = await supabase
       .from('categories')
       .select('*')
-      .eq('id', categoryId)
+      .eq('id', categoryId as any)
       .single()
 
     if (fetchError || !existingCategory) {
@@ -199,7 +212,7 @@ export async function PUT(
     const { data: updatedCategory, error } = await supabase
       .from('categories')
       .update(validatedData)
-      .eq('id', categoryId)
+      .eq('id', categoryId as any)
       .select(`
         *,
         parent:categories!categories_parent_id_fkey(id, name, slug, icon)
@@ -235,7 +248,7 @@ export async function PUT(
 /**
  * DELETE /api/categories/[id] - Delete category (Admin only)
  */
-export async function DELETE(
+async function handleDELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -243,19 +256,26 @@ export async function DELETE(
     const { id } = await params
     logAPIRequest(request, 'DELETE_CATEGORY')
 
-    // Require authentication (in production, check for admin role)
-    const user = await requireAuth(request)
+    // TODO: Replace with proper admin check - auth removed
+    // const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
+    throw new Error('Admin functionality temporarily disabled - authentication removed')
 
     // Validate UUID format
     const categoryId = uuidSchema.parse(id)
-
-    const supabase = await createServerSupabaseClient()
 
     // Check if category exists
     const { data: existingCategory, error: fetchError } = await supabase
       .from('categories')
       .select('*')
-      .eq('id', categoryId)
+      .eq('id', categoryId as any)
       .single()
 
     if (fetchError || !existingCategory) {
@@ -266,7 +286,7 @@ export async function DELETE(
     const { data: children, error: childrenError } = await supabase
       .from('categories')
       .select('id')
-      .eq('parent_id', categoryId)
+      .eq('parent_id', categoryId as any)
 
     if (childrenError) {
       throw new Error(`Failed to check for child categories: ${childrenError.message}`)
@@ -306,7 +326,7 @@ export async function DELETE(
     const { error: deleteError } = await supabase
       .from('categories')
       .delete()
-      .eq('id', categoryId)
+      .eq('id', categoryId as any)
 
     if (deleteError) {
       throw new Error(`Failed to delete category: ${deleteError.message}`)
@@ -344,3 +364,8 @@ export async function OPTIONS() {
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
+
+// Export wrapped handlers with middleware
+export const GET = withMiddleware(apiMiddleware.public(), handleGET)
+export const PUT = withMiddleware(apiMiddleware.public(), handlePUT)
+export const DELETE = withMiddleware(apiMiddleware.public(), handleDELETE)

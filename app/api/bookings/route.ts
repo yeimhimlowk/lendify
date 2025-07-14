@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/api/auth'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 import { 
   handleAPIError, 
   handleAuthError, 
@@ -33,13 +33,21 @@ type BookingWithDetails = Booking & {
 /**
  * GET /api/bookings - Get user's bookings with filtering and pagination
  */
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     logAPIRequest(request, 'GET_BOOKINGS')
 
-    // Require authentication
-    const user = await requireAuth(request)
+    // Get authenticated user
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Parse and validate query parameters
     // Filter out null values to prevent Zod coercion errors
@@ -62,8 +70,6 @@ export async function GET(request: NextRequest) {
     )
     
     const query: BookingQuery = bookingQuerySchema.parse(cleanParams)
-
-    const supabase = await createServerSupabaseClient()
 
     // Build query - user can see bookings where they are either renter or owner
     let dbQuery = supabase
@@ -168,18 +174,24 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/bookings - Create a new booking
  */
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     logAPIRequest(request, 'CREATE_BOOKING')
 
-    // Require authentication
-    const user = await requireAuth(request)
+    // Get authenticated user
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Parse and validate request body
     const body = await request.json()
     const validatedData: CreateBookingInput = createBookingSchema.parse(body)
-
-    const supabase = await createServerSupabaseClient()
 
     // Get listing details and verify it exists and is active
     const { data: listing, error: listingError } = await supabase
@@ -321,3 +333,7 @@ export async function OPTIONS() {
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
+
+// Export wrapped handlers with middleware
+export const GET = withMiddleware(apiMiddleware.authenticated(), handleGET)
+export const POST = withMiddleware(apiMiddleware.authenticated(), handlePOST)

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 import { authenticateRequest, checkOwnership } from '@/lib/api/auth'
 import { 
   handleAPIError, 
@@ -29,7 +30,7 @@ type ListingWithDetails = Database['public']['Tables']['listings']['Row'] & {
 /**
  * GET /api/listings/user/[userId] - Get listings by user ID
  */
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ userId: string }> }
 ) {
@@ -183,3 +184,6 @@ export async function OPTIONS() {
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
+
+// Export wrapped handlers with middleware
+export const GET = withMiddleware(apiMiddleware.authenticated(), handleGET)

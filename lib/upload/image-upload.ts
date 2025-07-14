@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/client'
+// import { createClient } from '@/lib/supabase/client' // Removed for auth cleanup
 
 export interface UploadResult {
   url: string
@@ -19,6 +19,12 @@ export async function uploadImage(
   file: File,
   _onProgress?: (progress: number) => void
 ): Promise<UploadResult> {
+  // TODO: Replace with alternative upload service - auth removed
+  return {
+    url: '',
+    path: '',
+    error: 'Upload functionality temporarily disabled - authentication removed'
+  }
   // Validate file
   if (!ALLOWED_TYPES.includes(file.type)) {
     return {

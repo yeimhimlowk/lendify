@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 import { checkEnvironment, checkDatabaseConnection, checkAuthFlow } from '@/lib/utils/environment-check'
 
 /**
@@ -11,7 +12,7 @@ import { checkEnvironment, checkDatabaseConnection, checkAuthFlow } from '@/lib/
  * - Authentication service status
  * - API service health
  */
-export async function GET(_request: NextRequest) {
+async function handleGET(_request: NextRequest) {
   const startTime = Date.now()
   
   try {
@@ -100,3 +101,6 @@ export async function GET(_request: NextRequest) {
 export async function OPTIONS() {
   return NextResponse.json({ message: 'Health check endpoint' }, { status: 200 })
 }
+
+// Export wrapped handlers with middleware
+export const GET = withMiddleware(apiMiddleware.public(), handleGET)

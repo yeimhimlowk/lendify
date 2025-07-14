@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/api/auth'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 import { handleAPIError, handleAuthError, handleValidationError } from '@/lib/api/errors'
 import { 
   createSuccessResponse,
@@ -28,7 +28,7 @@ type CategoryWithDetails = Category & {
 /**
  * GET /api/categories - Get all categories with optional hierarchy and counts
  */
-export async function GET(request: NextRequest) {
+async function handleGET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     logAPIRequest(request, 'GET_CATEGORIES')
@@ -142,18 +142,24 @@ export async function GET(request: NextRequest) {
  * POST /api/categories - Create a new category (Admin only)
  * Note: In a production app, you'd want proper admin role checking
  */
-export async function POST(request: NextRequest) {
+async function handlePOST(request: NextRequest) {
   try {
     logAPIRequest(request, 'CREATE_CATEGORY')
 
-    // Require authentication (in production, check for admin role)
-    const user = await requireAuth(request)
+    // Get authenticated user (in production, check for admin role)
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Parse and validate request body
     const body = await request.json()
     const validatedData: CreateCategoryInput = createCategorySchema.parse(body)
-
-    const supabase = await createServerSupabaseClient()
 
     // Check if category with same slug exists
     const { data: existingCategory } = await supabase
@@ -232,3 +238,7 @@ export async function OPTIONS() {
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
+
+// Export wrapped handlers with middleware
+export const GET = withMiddleware(apiMiddleware.public(), handleGET)
+export const POST = withMiddleware(apiMiddleware.authenticated(), handlePOST)

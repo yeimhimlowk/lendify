@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
-import { requireAuth } from '@/lib/api/auth'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 import { 
   handleAPIError, 
   handleAuthError, 
@@ -32,7 +32,7 @@ import {
 /**
  * GET /api/bookings/[id] - Get single booking details
  */
-export async function GET(
+async function handleGET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -41,12 +41,18 @@ export async function GET(
     logAPIRequest(request, 'GET_BOOKING')
 
     // Require authentication
-    const user = await requireAuth(request)
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Validate UUID format
     uuidSchema.parse(id)
-
-    const supabase = await createServerSupabaseClient()
 
     // Get booking with related data
     const { data: booking, error } = await supabase
@@ -99,7 +105,7 @@ export async function GET(
 /**
  * PUT /api/bookings/[id] - Update booking status and details
  */
-export async function PUT(
+async function handlePUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -108,7 +114,15 @@ export async function PUT(
     logAPIRequest(request, 'UPDATE_BOOKING')
 
     // Require authentication
-    const user = await requireAuth(request)
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Validate UUID format
     uuidSchema.parse(id)
@@ -116,8 +130,6 @@ export async function PUT(
     // Parse and validate request body
     const body = await request.json()
     const validatedData: UpdateBookingInput = updateBookingSchema.parse(body)
-
-    const supabase = await createServerSupabaseClient()
 
     // Get existing booking
     const { data: existingBooking, error: fetchError } = await supabase
@@ -299,7 +311,7 @@ export async function PUT(
 /**
  * DELETE /api/bookings/[id] - Cancel/delete booking
  */
-export async function DELETE(
+async function handleDELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -308,12 +320,18 @@ export async function DELETE(
     logAPIRequest(request, 'DELETE_BOOKING')
 
     // Require authentication
-    const user = await requireAuth(request)
+    const supabase = await createServerSupabaseClient()
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Authentication required' },
+        { status: 401 }
+      )
+    }
 
     // Validate UUID format
     uuidSchema.parse(id)
-
-    const supabase = await createServerSupabaseClient()
 
     // Get existing booking
     const { data: existingBooking, error: fetchError } = await supabase
@@ -399,3 +417,8 @@ export async function OPTIONS() {
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
 }
+
+// Export wrapped handlers with middleware
+export const GET = withMiddleware(apiMiddleware.authenticated(), handleGET)
+export const PUT = withMiddleware(apiMiddleware.authenticated(), handlePUT)
+export const DELETE = withMiddleware(apiMiddleware.authenticated(), handleDELETE)

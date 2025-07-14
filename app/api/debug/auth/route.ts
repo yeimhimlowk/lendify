@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 
-export async function GET() {
+async function handleGET() {
   try {
     const cookieStore = await cookies()
     
@@ -98,3 +98,6 @@ export async function GET() {
     }, { status: 500 })
   }
 }
+
+// Export wrapped handlers with middleware
+export const GET = withMiddleware(apiMiddleware.public(), handleGET)
