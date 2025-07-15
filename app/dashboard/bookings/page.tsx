@@ -6,6 +6,8 @@ import Image from 'next/image'
 import { useUser } from '@/lib/auth/use-auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { ReviewPrompt } from '@/components/reviews/ReviewPrompt'
+import { MessageUserIconButton } from '@/components/chat/MessageUserButton'
 import { 
   Calendar, 
   MapPin, 
@@ -391,10 +393,13 @@ export default function BookingsPage() {
                           </Link>
                         </Button>
                         
-                        <Button variant="outline" size="sm">
-                          <MessageSquare className="h-4 w-4 mr-1" />
-                          Message
-                        </Button>
+                        <MessageUserIconButton
+                          userId={isOwner ? booking.renter_id : booking.owner_id}
+                          userName={isOwner ? booking.renter?.full_name || undefined : booking.owner?.full_name || undefined}
+                          bookingId={booking.id}
+                          variant="outline"
+                          size="sm"
+                        />
 
                         <div className="dropdown-container relative">
                           <Button 
@@ -464,6 +469,34 @@ export default function BookingsPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Review Prompt for Completed Bookings */}
+                    {booking.status === 'completed' && (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <ReviewPrompt
+                          booking={{
+                            ...booking,
+                            listing: {
+                              title: booking.listing.title
+                            },
+                            renter: {
+                              id: booking.renter?.id || '',
+                              full_name: booking.renter?.full_name || '',
+                              avatar_url: booking.renter?.avatar_url || ''
+                            },
+                            owner: {
+                              id: booking.owner?.id || '',
+                              full_name: booking.owner?.full_name || '',
+                              avatar_url: booking.owner?.avatar_url || ''
+                            }
+                          }}
+                          onReviewSubmitted={() => {
+                            // Optionally refresh the bookings or show a success message
+                            console.log('Review submitted for booking', booking.id)
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

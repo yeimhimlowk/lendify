@@ -118,56 +118,97 @@ async function handlePOST(request: NextRequest) {
 }
 
 /**
- * Mock AI content generation function
- * In production, replace with actual AI service integration (OpenAI, Claude, etc.)
+ * AI content generation function using OpenRouter
  */
 async function generateAIContent(data: GenerateContentInput): Promise<ContentGenerationResult> {
-  // Simulate API delay
-  await new Promise(resolve => setTimeout(resolve, 1500))
-
   const { type, context, tone, length } = data
 
-  let content = ''
-  let alternatives: string[] = []
-  let suggestions: string[] = []
+  try {
+    // Import OpenRouter functions
+    const { createAIAssistant } = await import('@/lib/ai/openrouter')
 
-  switch (type) {
-    case 'title':
-      content = generateTitle(context, tone)
-      alternatives = [
-        generateTitle(context, 'professional'),
-        generateTitle(context, 'casual'),
-        generateTitle(context, 'friendly')
-      ].filter(alt => alt !== content)
-      break
+    // Create appropriate prompt based on content type
+    let prompt = ''
+    
+    switch (type) {
+      case 'title':
+        prompt = `Create a compelling rental listing title for a ${context.category || 'item'} in ${context.condition || 'good'} condition. 
+        Tone: ${tone}. Make it engaging and clickable while being accurate.
+        
+        Context: ${JSON.stringify(context)}
+        
+        Return only the title, no explanations.`
+        break
 
-    case 'description':
-      content = generateDescription(context, tone, length)
+      case 'description':
+        prompt = `Write a ${length} rental listing description for a ${context.category || 'item'} in ${context.condition || 'good'} condition.
+        Tone: ${tone}. Include relevant details that would help renters make a decision.
+        
+        Context: ${JSON.stringify(context)}
+        
+        Make it compelling but honest. Focus on benefits and practical information.`
+        break
+
+      case 'tags':
+        prompt = `Generate relevant tags for a rental listing of a ${context.category || 'item'} in ${context.condition || 'good'} condition.
+        
+        Context: ${JSON.stringify(context)}
+        
+        Return 5-8 tags separated by commas. Focus on searchable keywords that renters might use.`
+        break
+
+      default:
+        throw new Error(`Unsupported content type: ${type}`)
+    }
+
+    const aiResponse = await createAIAssistant(prompt, {
+      systemPrompt: 'You are an expert copywriter specializing in rental marketplace listings. Create compelling, accurate content that helps items get rented quickly.'
+    })
+
+    // Parse response based on type
+    let content = aiResponse.trim()
+    let alternatives: string[] = []
+    let suggestions: string[] = []
+
+    // Generate alternatives for titles
+    if (type === 'title' && content) {
+      try {
+        const altPrompt = `Create 2 alternative titles for the same rental listing with different approaches (more casual, more professional). 
+        Original: "${content}"
+        Context: ${JSON.stringify(context)}
+        
+        Return only the alternatives, one per line.`
+        
+        const altResponse = await createAIAssistant(altPrompt)
+        alternatives = altResponse.split('\n').filter(line => line.trim()).slice(0, 2)
+      } catch (error) {
+        console.error('Error generating alternatives:', error)
+      }
+    }
+
+    // Generate suggestions for descriptions
+    if (type === 'description') {
       suggestions = [
         'Consider adding specific dimensions or specifications',
         'Mention any included accessories or extras',
         'Highlight unique features that set this item apart',
         'Include care instructions or usage guidelines'
       ]
-      break
+    }
 
-    case 'tags':
-      const tagList = generateTags(context)
-      content = tagList.join(', ')
-      suggestions = [
-        'Use specific brand names if applicable',
-        'Include location-based tags for better discovery',
-        'Add seasonal or event-related tags when relevant'
-      ]
-      break
-  }
+    return {
+      generated_content: content,
+      alternatives: alternatives.length > 0 ? alternatives : undefined,
+      word_count: content.split(/\s+/).length,
+      tone_score: calculateToneScore(content, tone),
+      suggestions: suggestions.length > 0 ? suggestions : undefined
+    }
 
-  return {
-    generated_content: content,
-    alternatives: alternatives.length > 0 ? alternatives : undefined,
-    word_count: content.split(/\s+/).length,
-    tone_score: calculateToneScore(content, tone),
-    suggestions
+  } catch (error) {
+    console.error('AI Content Generation Error:', error)
+    
+    // Fallback to template-based generation
+    return generateFallbackContent(data)
   }
 }
 
@@ -210,7 +251,7 @@ function generateFallbackContent(data: GenerateContentInput): ContentGenerationR
 /**
  * Generate title based on context and tone
  */
-function generateTitle(context: any, tone: string): string {
+function _generateTitle(context: any, tone: string): string {
   const category = context.category || 'Item'
   const condition = context.condition || 'good'
   
@@ -244,7 +285,7 @@ function generateTitle(context: any, tone: string): string {
 /**
  * Generate description based on context, tone, and length
  */
-function generateDescription(context: any, tone: string, length: string): string {
+function _generateDescription(context: any, tone: string, length: string): string {
   const category = context.category || 'item'
   const condition = context.condition || 'good'
   
@@ -279,7 +320,7 @@ function generateDescription(context: any, tone: string, length: string): string
 /**
  * Generate relevant tags based on context
  */
-function generateTags(context: any): string[] {
+function _generateTags(context: any): string[] {
   const baseTags = ['rental', 'available']
   
   if (context.category) {

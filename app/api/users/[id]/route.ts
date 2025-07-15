@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
-import { authenticateRequest } from '@/lib/api/auth'
+import { getCurrentUser } from '@/lib/api/auth'
 import { 
   handleAPIError, 
   handleNotFoundError,
@@ -130,7 +130,7 @@ async function handleGET(
       }
 
       // Calculate response rate if user is authenticated (for messaging purposes)
-      const { user: currentUser } = await authenticateRequest(request)
+      const currentUser = await getCurrentUser(request)
       if (currentUser) {
         // Get response rate from messages (simplified calculation)
         const [sentMessages, repliedMessages] = await Promise.all([

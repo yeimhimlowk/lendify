@@ -15,6 +15,8 @@ import LocationStep from './steps/LocationStep'
 import PhotosStep from './steps/PhotosStep'
 import DetailsStep from './steps/DetailsStep'
 import ReviewStep from './steps/ReviewStep'
+import AIAssistant from '@/components/ai/AIAssistant'
+import ListingOptimizer from '@/components/ai/ListingOptimizer'
 
 const steps = [
   { id: 1, name: 'Basic Info', component: BasicInfoStep },
@@ -429,6 +431,26 @@ export default function CreateListingPage() {
             <Card className="p-6 sm:p-8">
               <CurrentStepComponent />
 
+              {/* AI Listing Optimizer - Show on basic info step */}
+              {currentStep === 1 && (
+                <div className="mt-8 mb-8">
+                  <ListingOptimizer
+                    category={formData.category_id}
+                    condition={formData.condition}
+                    currentTitle={formData.title}
+                    currentDescription={formData.description}
+                    onOptimizationComplete={(optimization) => {
+                      if (optimization.title) {
+                        methods.setValue('title', optimization.title)
+                      }
+                      if (optimization.description) {
+                        methods.setValue('description', optimization.description)
+                      }
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Navigation */}
               <div className="mt-8 flex items-center justify-between">
                 <Button
@@ -524,6 +546,16 @@ export default function CreateListingPage() {
           </div>
         </div>
       </div>
+
+      {/* AI Assistant */}
+      <AIAssistant 
+        assistantType="listing" 
+        context={{ 
+          userType: 'lender',
+          category: formData.category_id,
+          condition: formData.condition
+        }}
+      />
     </div>
   )
 }

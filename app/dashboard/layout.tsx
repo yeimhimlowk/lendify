@@ -37,7 +37,7 @@ const sidebarItems = [
   {
     name: "Messages",
     icon: MessageSquare,
-    href: "/dashboard/messages",
+    href: "/messages",
   },
   {
     name: "Analytics",

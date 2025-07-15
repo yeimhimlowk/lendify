@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useDebounce } from '@/hooks/useDebounce'
+import { useGeolocation } from '@/hooks/useGeolocation'
 
 interface SearchFilters {
   query?: string
@@ -10,6 +11,9 @@ interface SearchFilters {
   maxPrice?: string
   categories?: string[]
   location?: string
+  latitude?: string
+  longitude?: string
+  radius?: string
   availableFrom?: string
   availableTo?: string
   sortBy?: string
@@ -39,11 +43,13 @@ interface SearchResponse {
 export function useSearch() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { getCurrentPosition, isLoading: isGettingLocation } = useGeolocation()
   
   const [results, setResults] = useState<SearchResult[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | undefined>()
   
   // Parse filters from URL
   const filters: SearchFilters = {
@@ -52,10 +58,25 @@ export function useSearch() {
     maxPrice: searchParams.get('maxPrice') || undefined,
     categories: searchParams.get('categories')?.split(',').filter(Boolean),
     location: searchParams.get('location') || undefined,
+    latitude: searchParams.get('latitude') || undefined,
+    longitude: searchParams.get('longitude') || undefined,
+    radius: searchParams.get('radius') || undefined,
     availableFrom: searchParams.get('from') || undefined,
     availableTo: searchParams.get('to') || undefined,
     sortBy: searchParams.get('sort') || undefined,
   }
+  
+  // Initialize coordinates from URL parameters
+  useEffect(() => {
+    if (filters.latitude && filters.longitude) {
+      setCoordinates({
+        lat: parseFloat(filters.latitude),
+        lng: parseFloat(filters.longitude)
+      })
+    } else {
+      setCoordinates(undefined)
+    }
+  }, [filters.latitude, filters.longitude])
   
   const debouncedQuery = useDebounce(filters.query, 300)
   
@@ -72,6 +93,9 @@ export function useSearch() {
       if (filters.maxPrice) params.append('maxPrice', filters.maxPrice)
       if (filters.categories?.length) params.append('category', filters.categories.join(','))
       if (filters.location) params.append('location', filters.location)
+      if (filters.latitude) params.append('latitude', filters.latitude)
+      if (filters.longitude) params.append('longitude', filters.longitude)
+      if (filters.radius) params.append('radius', filters.radius)
       if (filters.availableFrom) params.append('available_from', filters.availableFrom)
       if (filters.availableTo) params.append('available_to', filters.availableTo)
       if (filters.sortBy) params.append('sortBy', filters.sortBy)
@@ -93,7 +117,7 @@ export function useSearch() {
     } finally {
       setIsLoading(false)
     }
-  }, [debouncedQuery, filters.minPrice, filters.maxPrice, filters.categories, filters.location, filters.availableFrom, filters.availableTo, filters.sortBy])
+  }, [debouncedQuery, filters.minPrice, filters.maxPrice, filters.categories, filters.location, filters.latitude, filters.longitude, filters.radius, filters.availableFrom, filters.availableTo, filters.sortBy])
   
   // Update URL with new filters
   const updateFilters = useCallback((newFilters: Partial<SearchFilters>) => {
@@ -116,6 +140,8 @@ export function useSearch() {
         params.set('to', value as string)
       } else if (key === 'sortBy') {
         params.set('sort', value as string)
+      } else if (key === 'latitude' || key === 'longitude' || key === 'radius') {
+        params.set(key, value as string)
       } else {
         params.set(key, value as string)
       }
@@ -127,7 +153,49 @@ export function useSearch() {
   // Clear all filters
   const clearFilters = useCallback(() => {
     router.push('/search')
+    setCoordinates(undefined)
   }, [router])
+  
+  // Use current location for search
+  const useMyLocation = useCallback(async () => {
+    try {
+      const position = await getCurrentPosition()
+      setCoordinates(position)
+      updateFilters({
+        latitude: position.lat.toString(),
+        longitude: position.lng.toString(),
+        radius: '10' // Default radius
+      })
+    } catch (error) {
+      console.error('Failed to get location:', error)
+      // Could show a toast notification here
+    }
+  }, [getCurrentPosition, updateFilters])
+  
+  // Update coordinates
+  const updateCoordinates = useCallback((newCoordinates: { lat: number; lng: number } | undefined) => {
+    setCoordinates(newCoordinates)
+    if (newCoordinates) {
+      updateFilters({
+        latitude: newCoordinates.lat.toString(),
+        longitude: newCoordinates.lng.toString(),
+        radius: filters.radius || '10'
+      })
+    } else {
+      updateFilters({
+        latitude: undefined,
+        longitude: undefined,
+        radius: undefined
+      })
+    }
+  }, [updateFilters, filters.radius])
+  
+  // Update radius
+  const updateRadius = useCallback((radius: number) => {
+    updateFilters({
+      radius: radius.toString()
+    })
+  }, [updateFilters])
   
   // Fetch results when filters change
   useEffect(() => {
@@ -140,7 +208,12 @@ export function useSearch() {
     isLoading,
     error,
     filters,
+    coordinates,
+    isGettingLocation,
     updateFilters,
     clearFilters,
+    useMyLocation,
+    updateCoordinates,
+    updateRadius,
   }
 }

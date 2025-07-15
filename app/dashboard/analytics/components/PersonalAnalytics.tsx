@@ -1,0 +1,31 @@
+"use client"
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Target } from "lucide-react"
+
+export default function PersonalAnalytics() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="p-3 bg-gradient-to-r from-purple-500 to-pink-500 rounded-xl">
+          <Target className="h-6 w-6 text-white" />
+        </div>
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Your Personal Analytics</h2>
+          <p className="text-gray-600">Track your rental patterns and savings</p>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Personal Rental Insights</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-center py-12">
+            <p className="text-gray-500">Personal analytics features coming soon...</p>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

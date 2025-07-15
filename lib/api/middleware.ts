@@ -151,7 +151,7 @@ export function sanitizeInput() {
  * Authentication requirement middleware
  */
 export function requireAuthentication() {
-  return async (request: NextRequest): Promise<NextResponse | null> => {
+  return async (_request: NextRequest): Promise<NextResponse | null> => {
     try {
       // Check if required environment variables are present
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {

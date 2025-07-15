@@ -5,6 +5,7 @@ import SearchFilters from '@/components/search/SearchFilters'
 import SearchResults from '@/components/search/SearchResults'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
+import LenaChat from '@/components/ai/LenaChat'
 import { useSearch } from '@/hooks/useSearch'
 
 // Categories fetched from API or config
@@ -191,6 +192,7 @@ function SearchContent() {
       </div>
       
       <Footer />
+      <LenaChat />
     </div>
   )
 }

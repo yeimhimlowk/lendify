@@ -289,8 +289,11 @@ export async function GET(request: NextRequest) {
 
         // Calculate distance if coordinates provided
         if (query.latitude && query.longitude && listing.location) {
-          // This would need to be calculated from the PostGIS location data
-          // For now, we'll set it undefined and let the database handle it
+          // Extract coordinates from PostGIS location data
+          const coords = extractCoordinatesFromPostGIS(listing.location)
+          if (coords) {
+            distance = calculateDistance(query.latitude, query.longitude, coords.lat, coords.lng)
+          }
         }
 
         return {
@@ -363,4 +366,59 @@ export async function OPTIONS() {
   response.headers.set('Access-Control-Allow-Methods', 'GET, OPTIONS')
   response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization')
   return response
+}
+
+/**
+ * Helper function to extract coordinates from PostGIS location data
+ */
+function extractCoordinatesFromPostGIS(location: any): { lat: number; lng: number } | null {
+  if (!location) return null
+  
+  try {
+    // If location is already an object with coordinates
+    if (typeof location === 'object' && location.coordinates) {
+      const [lng, lat] = location.coordinates
+      return { lat, lng }
+    }
+    
+    // If location is a string in WKT format like "POINT(-122.4194 37.7749)"
+    if (typeof location === 'string' && location.startsWith('POINT')) {
+      const match = location.match(/POINT\(([^)]+)\)/)
+      if (match) {
+        const [lng, lat] = match[1].split(' ').map(Number)
+        return { lat, lng }
+      }
+    }
+    
+    // If location has lat/lng properties directly
+    if (location.lat !== undefined && location.lng !== undefined) {
+      return { lat: location.lat, lng: location.lng }
+    }
+    
+    return null
+  } catch (error) {
+    console.error('Error extracting coordinates:', error)
+    return null
+  }
+}
+
+/**
+ * Helper function to calculate distance between two points using Haversine formula
+ */
+function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371 // Earth's radius in kilometers
+  const dLat = toRadians(lat2 - lat1)
+  const dLng = toRadians(lng2 - lng1)
+  
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRadians(lat1)) * Math.cos(toRadians(lat2)) *
+    Math.sin(dLng / 2) * Math.sin(dLng / 2)
+  
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  return R * c
+}
+
+function toRadians(degrees: number): number {
+  return degrees * (Math.PI / 180)
 }

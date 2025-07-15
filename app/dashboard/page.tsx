@@ -18,6 +18,7 @@ import {
   ArrowUpRight,
   Camera
 } from "lucide-react"
+import LenaChat from "@/components/ai/LenaChat"
 
 // Animated counter component
 function AnimatedCounter({ 
@@ -421,6 +422,9 @@ export default function DashboardPage() {
           </Link>
         </div>
       </div>
+
+      {/* Lena Chat Assistant */}
+      <LenaChat />
     </div>
   )
 }

@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/sheet"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
-import { Calendar as CalendarIcon, Filter, X } from "lucide-react"
+import { Calendar as CalendarIcon, Filter, X, MapPin, Crosshair } from "lucide-react"
 
 export interface SearchFiltersProps {
   priceRange: [number, number]
@@ -39,16 +39,23 @@ export interface SearchFiltersProps {
   onCategoriesChange: (categories: string[]) => void
   location: string
   onLocationChange: (location: string) => void
+  coordinates?: { lat: number; lng: number }
+  onCoordinatesChange: (coordinates: { lat: number; lng: number } | undefined) => void
+  radius: number
+  onRadiusChange: (radius: number) => void
   availableDate: Date | undefined
   onAvailableDateChange: (date: Date | undefined) => void
   sortBy: string
   onSortByChange: (sortBy: string) => void
   onClearFilters: () => void
+  onUseMyLocation: () => void
+  isGettingLocation?: boolean
   className?: string
 }
 
 const sortOptions = [
   { value: "relevance", label: "Relevance" },
+  { value: "distance", label: "Distance" },
   { value: "price-asc", label: "Price: Low to High" },
   { value: "price-desc", label: "Price: High to Low" },
   { value: "rating", label: "Highest Rated" },
@@ -64,11 +71,17 @@ export default function SearchFilters({
   onCategoriesChange,
   location,
   onLocationChange,
+  coordinates,
+  onCoordinatesChange,
+  radius,
+  onRadiusChange,
   availableDate,
   onAvailableDateChange,
   sortBy,
   onSortByChange,
   onClearFilters,
+  onUseMyLocation,
+  isGettingLocation = false,
   className,
 }: SearchFiltersProps) {
 
@@ -85,6 +98,8 @@ export default function SearchFilters({
     priceRange[1] < maxPrice ||
     selectedCategories.length > 0 ||
     location.trim() !== "" ||
+    coordinates !== undefined ||
+    radius !== 10 ||
     availableDate !== undefined ||
     sortBy !== "relevance"
 
@@ -145,17 +160,77 @@ export default function SearchFilters({
         <Label htmlFor="location" className="text-base font-semibold mb-4 block">
           Location
         </Label>
-        <div className="relative">
-          <Input
-            id="location"
-            placeholder="Enter location..."
-            value={location}
-            onChange={(e) => onLocationChange(e.target.value)}
-            className="w-full"
-          />
-          {/* Location suggestions would be shown here when API is integrated */}
+        <div className="space-y-3">
+          <div className="relative">
+            <Input
+              id="location"
+              placeholder="Enter location..."
+              value={location}
+              onChange={(e) => onLocationChange(e.target.value)}
+              className="w-full"
+            />
+            <MapPin className="absolute right-3 top-2.5 h-4 w-4 text-muted-foreground" />
+          </div>
+          
+          {/* Use My Location Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onUseMyLocation}
+            disabled={isGettingLocation}
+            className="w-full gap-2"
+          >
+            <Crosshair className={cn("h-4 w-4", isGettingLocation && "animate-spin")} />
+            {isGettingLocation ? "Getting location..." : "Use my location"}
+          </Button>
+          
+          {/* Current coordinates display */}
+          {coordinates && (
+            <div className="text-xs text-muted-foreground bg-muted p-2 rounded">
+              <div className="flex items-center justify-between">
+                <span>Current search location</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onCoordinatesChange(undefined)}
+                  className="h-6 w-6 p-0"
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+              <div className="mt-1">
+                {coordinates.lat.toFixed(4)}, {coordinates.lng.toFixed(4)}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Radius Filter */}
+      {coordinates && (
+        <div>
+          <Label className="text-base font-semibold mb-4 block">
+            Search Radius
+          </Label>
+          <div className="space-y-3">
+            <Slider
+              value={[radius]}
+              onValueChange={(value) => onRadiusChange(value[0])}
+              max={50}
+              min={1}
+              step={1}
+              className="w-full"
+            />
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-muted-foreground">1 km</span>
+              <span className="text-muted-foreground font-medium">
+                {radius} km
+              </span>
+              <span className="text-muted-foreground">50 km</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Availability Date */}
       <div>
@@ -244,6 +319,7 @@ export default function SearchFilters({
                 <span className="ml-1 rounded-full bg-primary text-primary-foreground text-xs px-2 py-0.5">
                   {selectedCategories.length +
                     (location ? 1 : 0) +
+                    (coordinates ? 1 : 0) +
                     (availableDate ? 1 : 0) +
                     (priceRange[0] > 0 || priceRange[1] < maxPrice ? 1 : 0)}
                 </span>

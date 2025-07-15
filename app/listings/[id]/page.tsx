@@ -7,6 +7,8 @@ import { Calendar, MapPin, Star, User, Shield, Clock, DollarSign } from 'lucide-
 import { Database } from '@/lib/supabase/types'
 import { BookingForm } from '@/components/listings/BookingForm'
 import { ListingMap } from '@/components/maps/ListingMap'
+import { ReviewsList } from '@/components/reviews/ReviewsList'
+import { MessageUserButton } from '@/components/chat/MessageUserButton'
 
 type Listing = Database['public']['Tables']['listings']['Row']
 type ListingWithDetails = Listing & {
@@ -18,11 +20,13 @@ type ListingWithDetails = Listing & {
     bookings: number
     reviews: number
   }
+  _avgRating?: number
 }
 
 async function getListingById(id: string): Promise<ListingWithDetails | null> {
   const supabase = await createServerSupabaseClient()
   
+  // First get the listing data
   const { data: listing, error } = await supabase
     .from('listings')
     .select(`
@@ -44,17 +48,13 @@ async function getListingById(id: string): Promise<ListingWithDetails | null> {
 
   if (listing.location) {
     try {
-      // Parse location from PostGIS POINT format
-      // Location is stored as POINT(longitude latitude) in text format
-      const locationStr = listing.location.toString()
-      const pointMatch = locationStr.match(/POINT\(([^)]+)\)/)
-      
-      if (pointMatch) {
-        const coords = pointMatch[1].split(' ')
-        if (coords.length === 2) {
-          longitude = parseFloat(coords[0])
-          latitude = parseFloat(coords[1])
-        }
+      // Use the RPC function to extract coordinates
+      const { data: coordData, error: coordError } = await supabase
+        .rpc('get_listing_coordinates', { listing_id: id })
+
+      if (!coordError && coordData && coordData.length > 0) {
+        longitude = coordData[0].longitude
+        latitude = coordData[0].latitude
       }
     } catch (coordinateError) {
       // If coordinate extraction fails, continue without coordinates
@@ -62,11 +62,23 @@ async function getListingById(id: string): Promise<ListingWithDetails | null> {
     }
   }
 
-  // Get booking stats
-  const { data: bookings } = await supabase
-    .from('bookings')
-    .select('id')
-    .eq('listing_id', id)
+  // Get booking and review stats
+  const [bookingsData, reviewsData] = await Promise.all([
+    supabase
+      .from('bookings')
+      .select('id')
+      .eq('listing_id', id),
+    
+    supabase
+      .from('reviews')
+      .select('rating')
+      .eq('reviewee_id', listing.owner_id)
+  ])
+
+  const reviews = reviewsData.data || []
+  const avgRating = reviews.length > 0 
+    ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
+    : 0
 
   return {
     ...listing,
@@ -75,9 +87,10 @@ async function getListingById(id: string): Promise<ListingWithDetails | null> {
     latitude,
     longitude,
     _count: {
-      bookings: bookings?.length || 0,
-      reviews: 0 // TODO: Add reviews count when implemented
-    }
+      bookings: bookingsData.data?.length || 0,
+      reviews: reviews.length
+    },
+    _avgRating: Math.round(avgRating * 10) / 10
   }
 }
 
@@ -180,10 +193,17 @@ export default async function ListingPage({ params }: PageProps) {
                     </div>
                   )}
                   
-                  <div className="flex items-center gap-2">
-                    <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
-                    <span>4.8 (127 reviews)</span>
-                  </div>
+                  {listing._count?.reviews && listing._count.reviews > 0 ? (
+                    <div className="flex items-center gap-2">
+                      <Star className="h-5 w-5 fill-yellow-400 text-yellow-400" />
+                      <span>{listing._avgRating} ({listing._count.reviews} reviews)</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Star className="h-5 w-5 text-gray-300" />
+                      <span className="text-gray-500">No reviews yet</span>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -290,6 +310,16 @@ export default async function ListingPage({ params }: PageProps) {
                   </div>
                 </div>
               )}
+
+              {/* Reviews */}
+              <div className="mb-8">
+                <h2 className="text-xl font-semibold text-[var(--black)] mb-4">Reviews</h2>
+                <ReviewsList 
+                  userId={listing.owner_id}
+                  showBooking={true}
+                  className="border-t pt-6"
+                />
+              </div>
             </div>
 
             {/* Sidebar */}
@@ -306,9 +336,12 @@ export default async function ListingPage({ params }: PageProps) {
 
                 {/* Contact Owner */}
                 <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-lg mb-6">
-                  <button className="w-full border-2 border-[var(--primary)] text-[var(--primary)] py-3 px-6 rounded-lg font-semibold hover:bg-[var(--primary)] hover:text-white transition-all duration-200">
-                    Message Owner
-                  </button>
+                  <MessageUserButton
+                    userId={listing.owner_id}
+                    userName={listing.owner?.full_name || undefined}
+                    variant="outline"
+                    className="w-full py-3 px-6 border-2 border-[var(--primary)] text-[var(--primary)] font-semibold hover:bg-[var(--primary)] hover:text-white transition-all duration-200"
+                  />
                 </div>
 
                 {/* Owner Card */}

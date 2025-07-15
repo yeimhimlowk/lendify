@@ -4,6 +4,7 @@ import Footer from "@/components/layout/Footer"
 import CategoryGrid from "@/components/home/CategoryGrid"
 import FeaturedListings from "@/components/home/FeaturedListings"
 import HeroSection from "@/components/home/HeroSection"
+import LenaChat from "@/components/ai/LenaChat"
 
 function CategoriesLoadingSkeleton() {
   return (
@@ -62,6 +63,7 @@ export default function HomePage() {
         </Suspense>
       </main>
       <Footer />
+      <LenaChat />
     </>
   )
 }
