@@ -110,9 +110,9 @@ export function ReviewCard({
             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-gray-100 text-gray-700 border">
               Booking
             </span>
-            {review.booking.listing?.title && (
+            {(review.booking as any)?.listing?.title && (
               <span className="text-sm text-gray-600">
-                {review.booking.listing.title}
+                {(review.booking as any).listing.title}
               </span>
             )}
             <span className="text-xs text-gray-500">

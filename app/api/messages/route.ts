@@ -212,7 +212,7 @@ async function handleGET(request: NextRequest) {
 
     } else {
       // Get conversations (latest message from each conversation)
-      const { data: conversations, error } = await supabase.rpc('get_user_conversations', {
+      const { data: conversations, error } = await (supabase as any).rpc('get_user_conversations', {
         user_id: user.id
       })
 
@@ -244,7 +244,7 @@ async function handleGET(request: NextRequest) {
             ? message.recipient.id 
             : message.sender.id
           
-          const key = `${Math.min(user.id, otherUserId)}-${Math.max(user.id, otherUserId)}`
+          const key = `${user.id < otherUserId ? user.id : otherUserId}-${user.id > otherUserId ? user.id : otherUserId}`
           
           if (!conversationsMap.has(key)) {
             conversationsMap.set(key, {

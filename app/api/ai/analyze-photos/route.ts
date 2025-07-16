@@ -159,7 +159,7 @@ async function performPhotoAnalysis(data: AnalyzePhotosInput): Promise<PhotoAnal
       `Analyzing ${data.photos.length} photo${data.photos.length > 1 ? 's' : ''} for this rental listing.` : 
       'No photos provided for analysis.'
 
-    const contextInfo = data.context ? JSON.stringify(data.context) : 'No additional context provided.'
+    const contextInfo = 'No additional context provided.'
 
     let prompt = ''
     

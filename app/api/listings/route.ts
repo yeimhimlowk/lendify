@@ -296,7 +296,7 @@ async function handlePOST(request: NextRequest) {
 
     // Remove the plain location object as we've converted it to PostGIS format
     // Also remove photoData since it's frontend-only and not a database column
-    const { location, availability, photoData, ...dataWithoutLocation } = validatedData
+    const { location, availability, photoData: _photoData, ...dataWithoutLocation } = validatedData
     
     const insertData = {
       ...dataWithoutLocation,

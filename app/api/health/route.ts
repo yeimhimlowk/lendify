@@ -26,7 +26,7 @@ async function handleGET(_request: NextRequest) {
     const authCheck = await checkAuthFlow()
     
     // Check if we can create a Supabase client
-    let clientCheck = { created: false, error: null }
+    let clientCheck: { created: boolean; error: string | null } = { created: false, error: null }
     try {
       const _supabase = await createServerSupabaseClient()
       clientCheck.created = true

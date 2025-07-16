@@ -146,6 +146,20 @@ What can I help you with today?`
     }
   }
 
+  // Handle Escape key to close chat
+  useEffect(() => {
+    const handleEscapeKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        handleClose()
+      }
+    }
+
+    if (isOpen) {
+      document.addEventListener('keydown', handleEscapeKey)
+      return () => document.removeEventListener('keydown', handleEscapeKey)
+    }
+  }, [isOpen])
+
   const handleClose = () => {
     setIsOpen(false)
     onClose?.()
@@ -183,16 +197,10 @@ What can I help you with today?`
 
       {/* Chat Window */}
       {isOpen && (
-        <>
-          {/* Backdrop overlay for mobile */}
-          <div 
-            className="fixed inset-0 z-30 bg-black bg-opacity-20 sm:bg-transparent sm:pointer-events-none"
-            onClick={handleClose}
-          />
-          
+        <>          
           {/* Chat Window Container */}
-          <div className="fixed inset-0 z-40 flex items-end justify-end p-4 sm:p-6 pointer-events-none">
-            <Card className="w-full max-w-sm sm:max-w-md h-[500px] max-h-[80vh] shadow-2xl border-2 border-purple-200 bg-white rounded-2xl overflow-hidden pointer-events-auto transform transition-all duration-300 animate-in slide-in-from-bottom-4 sm:slide-in-from-right-4">
+          <div className="fixed bottom-20 right-6 z-40 pointer-events-none">
+            <Card className="w-[380px] h-[500px] shadow-2xl border-2 border-purple-200 bg-white rounded-2xl overflow-hidden pointer-events-auto transform transition-all duration-300 animate-in slide-in-from-bottom-4 sm:slide-in-from-right-4">
           <CardHeader className="pb-3 bg-gradient-to-r from-purple-50 to-pink-50 border-b border-purple-100">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold text-purple-700 flex items-center">
@@ -201,14 +209,16 @@ What can I help you with today?`
                   <Heart className="h-3 w-3 absolute -top-1 -right-1 text-pink-500 animate-pulse" />
                 </div>
                 Lena - Your AI Assistant
+                <span className="text-xs text-purple-500 font-normal ml-2 hidden sm:inline">(Press Esc to close)</span>
               </CardTitle>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={handleClose}
-                className="text-purple-600 hover:text-purple-800 hover:bg-purple-100 rounded-full p-1.5 transition-colors"
+                className="text-gray-600 hover:text-white hover:bg-red-500 rounded-full p-2 transition-all duration-200 hover:scale-110 bg-gray-100 hover:bg-red-500 shadow-sm"
+                title="Close chat (Esc)"
               >
-                <X className="h-4 w-4" />
+                <X className="h-5 w-5 font-bold" />
               </Button>
             </div>
           </CardHeader>

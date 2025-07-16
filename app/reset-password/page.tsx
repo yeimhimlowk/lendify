@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useAuth } from '@/lib/auth/use-auth'
+import { getSupabaseClient } from '@/lib/supabase/client'
 import { FormInput } from '@/components/ui/form-input'
 import { LoadingButton } from '@/components/ui/loading-button'
 import { Alert } from '@/components/ui/alert'
@@ -32,7 +33,7 @@ export default function ResetPasswordPage() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const { updatePassword, loading } = useAuth()
+  const { loading } = useAuth()
   const router = useRouter()
 
   const {
@@ -46,7 +47,12 @@ export default function ResetPasswordPage() {
   const onSubmit = async (data: NewPasswordFormData) => {
     try {
       setError(null)
-      await updatePassword(data.password)
+      const supabase = getSupabaseClient()
+      const { error } = await supabase.auth.updateUser({
+        password: data.password
+      })
+      
+      if (error) throw error
       setSuccess(true)
       setTimeout(() => {
         router.push('/login')

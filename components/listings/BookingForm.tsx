@@ -40,46 +40,47 @@ export function BookingForm({
   const [error, setError] = useState<string | null>(null)
   const [isLoadingDates, setIsLoadingDates] = useState(true)
 
+  // Function to fetch unavailable dates
+  const fetchUnavailableDates = async () => {
+    try {
+      setIsLoadingDates(true)
+      const supabase = createClient()
+      
+      // Fetch confirmed/active bookings for this listing
+      const { data: bookings, error } = await supabase
+        .from('bookings')
+        .select('start_date, end_date')
+        .eq('listing_id', listingId)
+        .in('status', ['confirmed', 'active'])
+      
+      if (error) {
+        console.error('Error fetching bookings:', error)
+        return
+      }
+
+      // Convert booking date ranges to unavailable date array
+      const unavailable: Date[] = []
+      bookings?.forEach(booking => {
+        const start = new Date(booking.start_date)
+        const end = new Date(booking.end_date)
+        const current = new Date(start)
+        
+        while (current <= end) {
+          unavailable.push(new Date(current))
+          current.setDate(current.getDate() + 1)
+        }
+      })
+      
+      setUnavailableDates(unavailable)
+    } catch (error) {
+      console.error('Error fetching unavailable dates:', error)
+    } finally {
+      setIsLoadingDates(false)
+    }
+  }
+
   // Fetch unavailable dates on component mount
   useEffect(() => {
-    const fetchUnavailableDates = async () => {
-      try {
-        setIsLoadingDates(true)
-        const supabase = createClient()
-        
-        // Fetch confirmed/active bookings for this listing
-        const { data: bookings, error } = await supabase
-          .from('bookings')
-          .select('start_date, end_date')
-          .eq('listing_id', listingId)
-          .in('status', ['confirmed', 'active'])
-        
-        if (error) {
-          console.error('Error fetching bookings:', error)
-          return
-        }
-
-        // Convert booking date ranges to unavailable date array
-        const unavailable: Date[] = []
-        bookings?.forEach(booking => {
-          const start = new Date(booking.start_date)
-          const end = new Date(booking.end_date)
-          const current = new Date(start)
-          
-          while (current <= end) {
-            unavailable.push(new Date(current))
-            current.setDate(current.getDate() + 1)
-          }
-        })
-        
-        setUnavailableDates(unavailable)
-      } catch (error) {
-        console.error('Error fetching unavailable dates:', error)
-      } finally {
-        setIsLoadingDates(false)
-      }
-    }
-
     fetchUnavailableDates()
   }, [listingId])
 

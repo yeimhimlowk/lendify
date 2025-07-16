@@ -17,7 +17,6 @@ import {
   Filter,
   MoreHorizontal,
   Eye,
-  MessageSquare,
   XCircle,
   CheckCircle,
   AlertCircle,
@@ -91,7 +90,6 @@ export default function BookingsPage() {
         setLoading(true)
         const response = await fetch('/api/bookings', {
           headers: {
-            'Authorization': `Bearer ${user.access_token}`,
             'Content-Type': 'application/json'
           }
         })
@@ -163,7 +161,6 @@ export default function BookingsPage() {
       const response = await fetch(`/api/bookings/${bookingId}`, {
         method: 'PUT',
         headers: {
-          'Authorization': `Bearer ${user?.access_token}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ status: newStatus })
@@ -478,17 +475,17 @@ export default function BookingsPage() {
                             ...booking,
                             listing: {
                               title: booking.listing.title
-                            },
+                            } as any,
                             renter: {
                               id: booking.renter?.id || '',
                               full_name: booking.renter?.full_name || '',
                               avatar_url: booking.renter?.avatar_url || ''
-                            },
+                            } as any,
                             owner: {
                               id: booking.owner?.id || '',
                               full_name: booking.owner?.full_name || '',
                               avatar_url: booking.owner?.avatar_url || ''
-                            }
+                            } as any
                           }}
                           onReviewSubmitted={() => {
                             // Optionally refresh the bookings or show a success message

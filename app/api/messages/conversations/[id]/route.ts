@@ -19,10 +19,10 @@ import { messageQuerySchema } from '@/lib/api/schemas'
  */
 async function handleGET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const conversationWithUserId = params.id
+    const { id: conversationWithUserId } = await params
     logAPIRequest(request, 'GET_CONVERSATION_MESSAGES')
 
     // Authenticate the request
@@ -97,7 +97,7 @@ async function handleGET(
 
     // Get conversation metadata
     const conversationData = {
-      id: `${Math.min(user.id, conversationWithUserId)}-${Math.max(user.id, conversationWithUserId)}`,
+      id: `${user.id < conversationWithUserId ? user.id : conversationWithUserId}-${user.id > conversationWithUserId ? user.id : conversationWithUserId}`,
       other_user: otherUser,
       message_count: count || 0,
       messages: messages || []

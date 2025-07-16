@@ -195,7 +195,7 @@ export default function Header() {
                       </Link>
                       <hr className="my-2" />
                       <Link
-                        href="/settings"
+                        href="/dashboard/settings"
                         className="block px-4 py-3 text-sm hover:bg-gray-50"
                         onClick={() => setShowUserMenu(false)}
                       >

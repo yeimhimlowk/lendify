@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
 /**
@@ -161,10 +161,10 @@ export function addCORSHeaders(response: Response): Response {
 
 /**
  * Add security headers to response
- * @param response - Response object
- * @returns Response with security headers
+ * @param response - NextResponse object
+ * @returns NextResponse with security headers
  */
-export function addSecurityHeaders(response: Response): Response {
+export function addSecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set('X-Content-Type-Options', 'nosniff')
   response.headers.set('X-Frame-Options', 'DENY')
   response.headers.set('X-XSS-Protection', '1; mode=block')

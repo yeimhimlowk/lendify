@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
-import { authenticateRequest, checkOwnership } from '@/lib/api/auth'
+import { authenticateRequest } from '@/lib/api/auth'
 import { 
   handleAPIError, 
   handleNotFoundError,
@@ -66,8 +66,8 @@ async function handleGET(
     }
 
     // Check authentication and permissions
-    const { user: currentUser } = await authenticateRequest(request)
-    const isOwner = currentUser && checkOwnership(currentUser.id, validUserId)
+    const currentUser = await authenticateRequest(request)
+    const isOwner = currentUser && currentUser.id === validUserId
 
     // Build query based on permissions
     let query = supabase

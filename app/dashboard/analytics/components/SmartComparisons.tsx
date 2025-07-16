@@ -392,7 +392,7 @@ export default function SmartComparisons() {
             <CardContent>
               <div className="space-y-4">
                 {neighborhoodData
-                  .sort((a, b) => b[selectedMetric as keyof typeof a] - a[selectedMetric as keyof typeof a])
+                  .sort((a, b) => (Number(b[selectedMetric as keyof typeof a]) || 0) - (Number(a[selectedMetric as keyof typeof a]) || 0))
                   .map((neighborhood, index) => (
                     <div key={neighborhood.name} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex items-center gap-3">

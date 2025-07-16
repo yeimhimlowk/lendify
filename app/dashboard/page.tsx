@@ -200,8 +200,7 @@ function ActivityItem({
 export default function DashboardPage() {
   // TODO: Replace with non-auth user state - auth removed
   // const { profile } = useUser()
-  const profile = null
-  const firstName = profile?.full_name?.split(' ')[0] || 'there'
+  const firstName = 'there' // Simplified since auth is removed
 
   // State for dashboard statistics
   const [stats, setStats] = useState({

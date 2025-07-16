@@ -132,7 +132,7 @@ export default function SignupPage() {
           router.push('/verify-email')
         }, 2000)
       }
-    } catch (err) {
+    } catch (_err) {
       setFormError('An unexpected error occurred. Please try again.')
     } finally {
       setIsSubmitting(false)

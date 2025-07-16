@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
+import { authenticateRequest } from '@/lib/api/auth'
 // Auth functions replaced with inline middleware authentication
 import { 
   handleAPIError, 
@@ -83,7 +84,7 @@ async function handleGET(
     }
 
     // Check if listing is active or if user is the owner
-    const { user } = await authenticateRequest(request)
+    const user = await authenticateRequest(request)
     const isOwner = user && listing.owner_id === user.id
     
     if (listing.status !== 'active' && !isOwner) {
@@ -197,7 +198,7 @@ async function handlePUT(
     }
 
     // Check ownership
-    if (!checkOwnership(user.id, existingListing.owner_id)) {
+    if (user.id !== existingListing.owner_id) {
       return handleAuthorizationError('You can only update your own listings')
     }
 
@@ -304,7 +305,7 @@ async function handleDELETE(
     }
 
     // Check ownership
-    if (!checkOwnership(user.id, existingListing.owner_id)) {
+    if (user.id !== existingListing.owner_id) {
       return handleAuthorizationError('You can only delete your own listings')
     }
 

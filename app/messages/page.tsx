@@ -174,7 +174,7 @@ export default function MessagesPage() {
                 <ConversationList
                   conversations={conversations}
                   currentUserId={user?.id || ''}
-                  selectedConversationId={selectedUserId}
+                  selectedConversationId={selectedUserId || undefined}
                   onSelectConversation={handleSelectConversation}
                   loading={conversationsLoading}
                 />
@@ -203,7 +203,7 @@ export default function MessagesPage() {
             </Card>
           ) : (
             <ChatWindow
-              conversation={selectedConversation}
+              conversation={selectedConversation as any}
               currentUserId={user?.id || ''}
               bookingId={bookingId || undefined}
               onSendMessage={handleSendMessage}

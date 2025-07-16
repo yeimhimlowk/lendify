@@ -1,6 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
+import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 
 async function handleGET() {
   try {
@@ -80,8 +81,8 @@ async function handleGET() {
       database: {
         connected: databaseConnected,
         error: databaseError ? {
-          message: databaseError.message || 'Unknown database error',
-          code: databaseError.code,
+          message: (databaseError as any)?.message || 'Unknown database error',
+          code: (databaseError as any)?.code,
         } : null,
       },
       recommendations: [

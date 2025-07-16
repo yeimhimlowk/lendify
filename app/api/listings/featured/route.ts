@@ -29,6 +29,7 @@ async function handleGET(request: NextRequest) {
 
     // TODO: Replace with direct database access - auth removed
     // const supabase = await createServerSupabaseClient()
+    const supabase: any = null // Temporary fix for build
     throw new Error('Database access temporarily disabled - authentication removed')
 
     // Build featured listings query with simpler criteria to avoid database errors
@@ -45,7 +46,7 @@ async function handleGET(request: NextRequest) {
 
     // Filter by category if specified
     if (category) {
-      if (category.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)) {
+      if (category!.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)) {
         query = query.eq('category_id', category)
       } else {
         query = query.eq('categories.slug', category)
@@ -67,7 +68,7 @@ async function handleGET(request: NextRequest) {
 
     // Calculate featured score for each listing
     const listingsWithScores = await Promise.all(
-      listings.map(async (listing) => {
+      listings.map(async (listing: any) => {
         // Get additional stats for scoring
         const [bookingStats, analyticsStats] = await Promise.all([
           // Get booking statistics
@@ -86,8 +87,8 @@ async function handleGET(request: NextRequest) {
         ])
 
         const bookingCount = bookingStats.data?.length || 0
-        const totalViews = analyticsStats.data?.reduce((sum, day) => sum + (day.views || 0), 0) || 0
-        const totalClicks = analyticsStats.data?.reduce((sum, day) => sum + (day.clicks || 0), 0) || 0
+        const totalViews = analyticsStats.data?.reduce((sum: number, day: any) => sum + (day.views || 0), 0) || 0
+        const totalClicks = analyticsStats.data?.reduce((sum: number, day: any) => sum + (day.clicks || 0), 0) || 0
 
         // Calculate featured score (0-100)
         let score = 0

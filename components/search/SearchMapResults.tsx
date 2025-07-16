@@ -52,17 +52,17 @@ export default function SearchMapResults({
     zoom: searchLocation ? 12 : 10
   })
   const [mapLoaded, setMapLoaded] = useState(false)
-  const mapRef = useRef<mapboxgl.Map>()
+  const mapRef = useRef<mapboxgl.Map | null>(null)
 
   // Filter listings that have location data
-  const listingsWithLocation: ListingWithLocation[] = listings
-    .map(listing => {
+  const listingsWithLocation: ListingWithLocation[] = (listings as any)
+    .map((listing: any) => {
       // Try to extract coordinates from location data
       // This assumes the API returns location data - you may need to adjust based on your API response
       const location = extractLocationFromListing(listing)
       return { ...listing, location }
     })
-    .filter(listing => listing.location)
+    .filter((listing: any) => listing.location)
 
   // Center map on listings when they change
   useEffect(() => {
@@ -141,7 +141,7 @@ export default function SearchMapResults({
     }
 
     return (
-      <Source id="search-radius" type="geojson" data={radiusGeoJSON}>
+      <Source id="search-radius" type="geojson" data={radiusGeoJSON as any}>
         <Layer
           id="search-radius-fill"
           type="fill"
@@ -216,7 +216,7 @@ export default function SearchMapResults({
       {viewMode === 'map' && (
         <div className="h-[600px] rounded-xl overflow-hidden border border-gray-200 shadow-sm mb-6">
           <Map
-            ref={mapRef}
+            ref={mapRef as any}
             {...viewState}
             onMove={evt => setViewState(evt.viewState)}
             onLoad={() => setMapLoaded(true)}

@@ -234,7 +234,7 @@ export default function BasicInfoStep() {
             id="category"
             label="Category"
             {...register('category_id')}
-            error={errors.category_id?.message || categoryError}
+            error={errors.category_id?.message || categoryError || undefined}
             disabled={loadingCategories}
           >
             <option value="">

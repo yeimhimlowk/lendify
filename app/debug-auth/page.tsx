@@ -16,13 +16,13 @@ const createTimedClient = () => {
     const query = originalFrom.call(this, table)
     const originalSelect = query.select
     query.select = function(...args: any[]) {
-      const promise = originalSelect.apply(this, args)
+      const promise = originalSelect.apply(this, args as any)
       return Promise.race([
         promise,
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Request timeout after 10 seconds')), 10000)
         )
-      ])
+      ]) as any
     }
     return query
   }
@@ -60,7 +60,7 @@ export default function DebugAuth() {
           keyLength: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.length || 0
         }
         
-        setResults(prev => ({ ...prev, envCheck }))
+        setResults((prev: any) => ({ ...prev, envCheck }))
         
         if (!envCheck.hasUrl || !envCheck.hasKey) {
           throw new Error('Missing environment variables')
@@ -77,7 +77,7 @@ export default function DebugAuth() {
         const client = createTimedClient()
         console.log('Client created successfully')
         
-        setResults(prev => ({ ...prev, clientCreation: { success: true } }))
+        setResults((prev: any) => ({ ...prev, clientCreation: { success: true } }))
         await new Promise(resolve => setTimeout(resolve, 500))
         
         // Step 3: Database Connection Test
@@ -98,7 +98,7 @@ export default function DebugAuth() {
           
           console.log('Database query completed:', { data, error, count, duration })
           
-          setResults(prev => ({ 
+          setResults((prev: any) => ({ 
             ...prev, 
             dbConnection: { 
               success: !error, 
@@ -109,7 +109,7 @@ export default function DebugAuth() {
           }))
         } catch (err) {
           console.error('Database connection error:', err)
-          setResults(prev => ({ 
+          setResults((prev: any) => ({ 
             ...prev, 
             dbConnection: { 
               success: false, 
@@ -141,7 +141,7 @@ export default function DebugAuth() {
           
           console.log('Auth session check completed:', { session, error, authDuration })
           
-          setResults(prev => ({ 
+          setResults((prev: any) => ({ 
             ...prev, 
             authSession: { 
               success: !error, 
@@ -152,7 +152,7 @@ export default function DebugAuth() {
           }))
         } catch (err) {
           console.error('Auth session error:', err)
-          setResults(prev => ({ 
+          setResults((prev: any) => ({ 
             ...prev, 
             authSession: { 
               success: false, 
@@ -182,7 +182,7 @@ export default function DebugAuth() {
           
           console.log('Profile query completed:', { data, error, profileDuration })
           
-          setResults(prev => ({ 
+          setResults((prev: any) => ({ 
             ...prev, 
             profileQuery: { 
               success: !error, 
@@ -193,7 +193,7 @@ export default function DebugAuth() {
           }))
         } catch (err) {
           console.error('Profile query error:', err)
-          setResults(prev => ({ 
+          setResults((prev: any) => ({ 
             ...prev, 
             profileQuery: { 
               success: false, 
@@ -207,7 +207,7 @@ export default function DebugAuth() {
       } catch (err) {
         console.error('Test suite error:', err)
         setStatus(`Error at step ${step}: ${err instanceof Error ? err.message : String(err)}`)
-        setResults(prev => ({ 
+        setResults((prev: any) => ({ 
           ...prev, 
           error: { 
             step, 

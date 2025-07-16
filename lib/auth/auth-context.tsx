@@ -131,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const { data: profile, error } = await supabase
         .from('profiles')
-        .insert(profileData)
+        .insert(profileData as any)
         .select()
         .single()
 
@@ -328,7 +328,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       dispatch({ type: 'SET_PROFILE', payload: profile })
       return { error: null }
-    } catch (err) {
+    } catch (_err) {
       const error = new Error('Failed to update profile')
       dispatch({ type: 'SET_ERROR', payload: error.message })
       return { error }

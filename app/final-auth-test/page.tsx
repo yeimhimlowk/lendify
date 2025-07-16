@@ -1,14 +1,14 @@
 'use client'
 
 import { useState } from 'react'
-import { useAuth, useUser } from '@/lib/auth/use-auth'
+import { useAuth } from '@/lib/auth/use-auth'
+import { getSupabaseClient } from '@/lib/supabase/client'
 
 export default function FinalAuthTest() {
   const [testEmail, setTestEmail] = useState('')
   const [testPassword, setTestPassword] = useState('')
   const [status, setStatus] = useState('Ready to test authentication')
-  const { signUp, signIn, signOut, loading } = useAuth()
-  const { user, profile, isAuthenticated } = useUser()
+  const { signOut, loading, user, profile, isAuthenticated } = useAuth()
 
   const handleSignUp = async () => {
     if (!testEmail || !testPassword) {
@@ -18,7 +18,13 @@ export default function FinalAuthTest() {
     
     setStatus('Signing up...')
     try {
-      await signUp(testEmail, testPassword)
+      const supabase = getSupabaseClient()
+      const { error } = await supabase.auth.signUp({
+        email: testEmail,
+        password: testPassword
+      })
+      
+      if (error) throw error
       setStatus('✅ Sign up successful! Check your email for verification.')
     } catch (error) {
       setStatus(`❌ Sign up failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -33,7 +39,13 @@ export default function FinalAuthTest() {
     
     setStatus('Signing in...')
     try {
-      await signIn(testEmail, testPassword)
+      const supabase = getSupabaseClient()
+      const { error } = await supabase.auth.signInWithPassword({
+        email: testEmail,
+        password: testPassword
+      })
+      
+      if (error) throw error
       setStatus('✅ Sign in successful!')
     } catch (error) {
       setStatus(`❌ Sign in failed: ${error instanceof Error ? error.message : 'Unknown error'}`)

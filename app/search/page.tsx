@@ -128,11 +128,15 @@ function SearchContent() {
                 onCategoriesChange={handleCategoriesChange}
                 location={filters.location || ''}
                 onLocationChange={handleLocationChange}
+                onCoordinatesChange={() => {}}
+                radius={10}
+                onRadiusChange={() => {}}
                 availableDate={filters.availableFrom ? new Date(filters.availableFrom) : undefined}
                 onAvailableDateChange={handleAvailableDateChange}
                 sortBy={filters.sortBy || 'relevance'}
                 onSortByChange={handleSortByChange}
                 onClearFilters={clearFilters}
+                onUseMyLocation={() => {}}
               />
             </div>
           </aside>

@@ -121,7 +121,7 @@ export function handleValidationError(error: unknown): NextResponse {
 
   // Create a more user-friendly error message
   const userFriendlyMessage = details.length > 0 
-    ? `Please check the following: ${details.map(d => d.message).join(', ')}`
+    ? `Please check the following: ${details.map((d: any) => d.message).join(', ')}`
     : 'Please check your input and try again'
 
   return createErrorResponse(

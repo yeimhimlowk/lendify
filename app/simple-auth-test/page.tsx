@@ -60,15 +60,15 @@ export default function SimpleAuthTest() {
       })
       
       if (error) {
-        setResults(prev => ({ ...prev, connection: { success: false, error: error.message, duration } }))
+        setResults((prev: any) => ({ ...prev, connection: { success: false, error: error.message, duration } }))
         setStatus('Connection failed')
       } else {
-        setResults(prev => ({ ...prev, connection: { success: true, message: 'Database connected', duration } }))
+        setResults((prev: any) => ({ ...prev, connection: { success: true, message: 'Database connected', duration } }))
         setStatus('Connection successful')
       }
     } catch (err) {
       console.error('Connection test error:', err)
-      setResults(prev => ({ ...prev, connection: { success: false, error: String(err) } }))
+      setResults((prev: any) => ({ ...prev, connection: { success: false, error: String(err) } }))
       setStatus('Connection error')
     }
     
@@ -90,14 +90,14 @@ export default function SimpleAuthTest() {
       })
       
       if (error) {
-        setResults(prev => ({ ...prev, signUp: { success: false, error: error.message } }))
+        setResults((prev: any) => ({ ...prev, signUp: { success: false, error: error.message } }))
         setStatus('Sign up failed')
       } else {
-        setResults(prev => ({ ...prev, signUp: { success: true, user: data.user?.id, needsConfirmation: !data.session } }))
+        setResults((prev: any) => ({ ...prev, signUp: { success: true, user: data.user?.id, needsConfirmation: !data.session } }))
         setStatus('Sign up successful')
       }
     } catch (err) {
-      setResults(prev => ({ ...prev, signUp: { success: false, error: String(err) } }))
+      setResults((prev: any) => ({ ...prev, signUp: { success: false, error: String(err) } }))
       setStatus('Sign up error')
     }
     
@@ -127,14 +127,14 @@ export default function SimpleAuthTest() {
       })
       
       if (error) {
-        setResults(prev => ({ ...prev, session: { success: false, error: error.message, duration } }))
+        setResults((prev: any) => ({ ...prev, session: { success: false, error: error.message, duration } }))
       } else {
-        setResults(prev => ({ ...prev, session: { success: true, hasSession: !!session, user: session?.user?.id, duration } }))
+        setResults((prev: any) => ({ ...prev, session: { success: true, hasSession: !!session, user: session?.user?.id, duration } }))
       }
       setStatus('Session test complete')
     } catch (err) {
       console.error('Session test error:', err)
-      setResults(prev => ({ ...prev, session: { success: false, error: String(err) } }))
+      setResults((prev: any) => ({ ...prev, session: { success: false, error: String(err) } }))
       setStatus('Session test error')
     }
     

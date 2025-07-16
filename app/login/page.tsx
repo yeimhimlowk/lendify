@@ -51,7 +51,7 @@ export default function LoginPage() {
         // Success - redirect will happen via useEffect
         router.push('/dashboard')
       }
-    } catch (err) {
+    } catch (_err) {
       setFormError('An unexpected error occurred. Please try again.')
     } finally {
       setIsSubmitting(false)
@@ -210,7 +210,7 @@ export default function LoginPage() {
           {/* Sign up link */}
           <div className="text-center">
             <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
+              Don&apos;t have an account?{' '}
               <Link
                 href="/signup"
                 className="font-medium text-[var(--primary)] hover:text-[var(--primary)]/80"

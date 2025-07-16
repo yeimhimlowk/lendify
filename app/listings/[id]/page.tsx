@@ -50,7 +50,7 @@ async function getListingById(id: string): Promise<ListingWithDetails | null> {
     try {
       // Use the RPC function to extract coordinates
       const { data: coordData, error: coordError } = await supabase
-        .rpc('get_listing_coordinates', { listing_id: id })
+        .rpc('get_listing_with_coordinates' as any, { listing_id: id })
 
       if (!coordError && coordData && coordData.length > 0) {
         longitude = coordData[0].longitude

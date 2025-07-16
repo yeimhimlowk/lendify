@@ -112,7 +112,7 @@ export async function GET(request: NextRequest) {
           type: 'booking',
           description: `${booking.renter?.full_name} booked ${booking.listing?.title}`,
           location: booking.listing?.address?.split(',')[0] || 'Unknown',
-          time: new Date(booking.created_at).toLocaleString(),
+          time: booking.created_at ? new Date(booking.created_at).toLocaleString() : 'Unknown',
           amount: booking.total_price
         })) || [],
         hourly_data: listingAnalytics?.slice(-24).map(item => ({
