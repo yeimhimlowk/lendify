@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useAuth } from '@/lib/auth/use-auth'
 import { useConversations } from '@/hooks/useConversations'
 import { useMessages } from '@/hooks/useMessages'
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { MessageSquare, Users, RefreshCw } from 'lucide-react'
 
-export default function MessagesPage() {
+function MessagesContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user, loading: authLoading } = useAuth()
@@ -220,5 +220,26 @@ export default function MessagesPage() {
         For the best messaging experience, use a larger screen or rotate your device to landscape mode.
       </div>
     </div>
+  )
+}
+
+// Loading component for Suspense fallback
+function MessagesLoading() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <div className="text-center">
+        <div className="w-8 h-8 border-2 border-[var(--primary)] border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+        <div className="text-gray-600">Loading messages...</div>
+      </div>
+    </div>
+  )
+}
+
+// Main component with Suspense wrapper
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={<MessagesLoading />}>
+      <MessagesContent />
+    </Suspense>
   )
 }

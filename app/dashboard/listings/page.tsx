@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useUser } from "@/lib/auth/use-auth"
@@ -236,7 +236,8 @@ function EmptyState({ status }: { status: ListingStatus }) {
   )
 }
 
-export default function MyListingsPage() {
+// Component that handles search params - needs to be wrapped in Suspense
+function MyListingsContent() {
   const { user } = useUser()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -429,5 +430,23 @@ export default function MyListingsPage() {
         </>
       )}
     </div>
+  )
+}
+
+// Loading component for Suspense fallback
+function ListingsLoading() {
+  return (
+    <div className="flex items-center justify-center h-64">
+      <Loader2 className="h-8 w-8 animate-spin text-[var(--primary)]" />
+    </div>
+  )
+}
+
+// Main component with Suspense wrapper
+export default function MyListingsPage() {
+  return (
+    <Suspense fallback={<ListingsLoading />}>
+      <MyListingsContent />
+    </Suspense>
   )
 }
