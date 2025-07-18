@@ -45,10 +45,10 @@ export function LocationPicker({
   onAddressChange,
   className
 }: LocationPickerProps) {
-  // Use a more neutral default location (London) if no location is provided
+  // Use Singapore as default location if no location is provided
   const [viewState, setViewState] = useState({
-    longitude: location.lng || 0,
-    latitude: location.lat || 51.5074,
+    longitude: location.lng || 103.8198,
+    latitude: location.lat || 1.3521,
     zoom: 14
   })
   const [searchQuery, setSearchQuery] = useState(address || '')
@@ -56,8 +56,8 @@ export function LocationPicker({
   const [isSearching, setIsSearching] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const [markerPosition, setMarkerPosition] = useState({
-    longitude: location.lng || 0,
-    latitude: location.lat || 51.5074
+    longitude: location.lng || 103.8198,
+    latitude: location.lat || 1.3521
   })
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [isInitialized, setIsInitialized] = useState(false)

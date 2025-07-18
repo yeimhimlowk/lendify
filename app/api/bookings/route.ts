@@ -5,7 +5,9 @@ import {
   handleAPIError, 
   handleAuthError, 
   handleValidationError,
-  handleConflictError
+  handleConflictError,
+  createErrorResponse,
+  ErrorCode
 } from '@/lib/api/errors'
 import { 
   createSuccessResponse,
@@ -43,11 +45,14 @@ async function handleGET(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
     
     if (authError || !user) {
+      console.error('Auth error in bookings API:', authError)
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       )
     }
+    
+    console.log('Fetching bookings for user:', user.id, user.email)
 
     // Parse and validate query parameters
     // Filter out null values to prevent Zod coercion errors
@@ -84,8 +89,17 @@ async function handleGET(request: NextRequest) {
           address,
           category:categories(*)
         ),
-        renter:profiles!bookings_renter_id_fkey(id, full_name, avatar_url, rating, verified),
-        owner:profiles!bookings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
+        renter:profiles!bookings_renter_id_fkey(id, full_name, avatar_url, rating, verified, email),
+        owner:profiles!bookings_owner_id_fkey(id, full_name, avatar_url, rating, verified, email),
+        rental_agreements!rental_agreements_booking_id_fkey(
+          id,
+          status,
+          created_at,
+          signed_by_owner,
+          signed_by_renter,
+          sent_at,
+          expires_at
+        )
       `)
       .or(`renter_id.eq.${user.id},owner_id.eq.${user.id}`)
 
@@ -145,6 +159,12 @@ async function handleGET(request: NextRequest) {
     dbQuery = dbQuery.range(offset, offset + query.limit - 1)
 
     const { data: bookings, error } = await dbQuery
+
+    console.log('Bookings query result:', { 
+      userId: user.id,
+      bookingsCount: bookings?.length || 0,
+      error 
+    })
 
     if (error) {
       throw new Error(`Database error: ${error.message}`)
@@ -228,11 +248,7 @@ async function handlePOST(request: NextRequest) {
       .select('id, start_date, end_date, status')
       .eq('listing_id', validatedData.listing_id as any)
       .in('status', ['confirmed', 'active'] as any)
-      .or(`
-        and(start_date.lte.${validatedData.start_date},end_date.gte.${validatedData.start_date}),
-        and(start_date.lte.${validatedData.end_date},end_date.gte.${validatedData.end_date}),
-        and(start_date.gte.${validatedData.start_date},end_date.lte.${validatedData.end_date})
-      `)
+      .or(`start_date.lte.${validatedData.end_date},end_date.gte.${validatedData.start_date}`)
 
     if (conflictError) {
       throw new Error(`Failed to check booking conflicts: ${conflictError.message}`)
@@ -264,6 +280,29 @@ async function handlePOST(request: NextRequest) {
       )
     }
 
+    // Convert ISO datetime strings to DATE format (YYYY-MM-DD)
+    const startDateString = validatedData.start_date.split('T')[0]
+    const endDateString = validatedData.end_date.split('T')[0]
+
+    // First check if user has a profile
+    const { data: userProfile, error: profileError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .single()
+
+    if (profileError || !userProfile) {
+      console.error('Profile check error:', profileError)
+      return NextResponse.json(
+        createErrorResponse(
+          'User profile not found. Please complete your profile setup.',
+          500,
+          ErrorCode.INTERNAL_ERROR
+        ),
+        { status: 500 }
+      )
+    }
+
     // Create the booking
     const { data: booking, error } = await supabase
       .from('bookings')
@@ -271,8 +310,8 @@ async function handlePOST(request: NextRequest) {
         listing_id: validatedData.listing_id,
         renter_id: user.id,
         owner_id: (listing as any).owner_id,
-        start_date: validatedData.start_date,
-        end_date: validatedData.end_date,
+        start_date: startDateString,
+        end_date: endDateString,
         total_price: validatedData.total_price,
         status: 'pending',
         created_at: new Date().toISOString(),
@@ -294,7 +333,51 @@ async function handlePOST(request: NextRequest) {
       .single()
 
     if (error) {
-      throw new Error(`Failed to create booking: ${error.message}`)
+      console.error('Booking creation error:', error)
+      
+      // Handle specific error cases
+      if (error.code === '23503') {
+        return NextResponse.json(
+          createErrorResponse(
+            'Invalid reference: Please ensure your profile is complete.',
+            400,
+            ErrorCode.BAD_REQUEST
+          ),
+          { status: 400 }
+        )
+      }
+      
+      if (error.code === '42501') {
+        return NextResponse.json(
+          createErrorResponse(
+            'Permission denied: Authentication issue detected.',
+            401,
+            ErrorCode.AUTHORIZATION_ERROR
+          ),
+          { status: 403 }
+        )
+      }
+      
+      if (error.code === '23514') {
+        return NextResponse.json(
+          createErrorResponse(
+            'Invalid booking data: Please check dates and pricing.',
+            400,
+            ErrorCode.BAD_REQUEST
+          ),
+          { status: 400 }
+        )
+      }
+      
+      // Generic error fallback
+      return NextResponse.json(
+        createErrorResponse(
+          'Failed to create booking. Please try again.',
+          500,
+          ErrorCode.INTERNAL_ERROR
+        ),
+        { status: 500 }
+      )
     }
 
     // TODO: Send notification to listing owner

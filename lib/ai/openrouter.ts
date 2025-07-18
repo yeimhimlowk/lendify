@@ -75,10 +75,22 @@ export async function callOpenRouter(
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}))
-    throw new Error(`OpenRouter API error: ${response.status} ${error.error?.message || response.statusText}`)
+    console.error('OpenRouter API error:', {
+      status: response.status,
+      statusText: response.statusText,
+      error: error
+    })
+    throw new Error(`OpenRouter API error: ${response.status} ${error.error?.message || error.message || response.statusText}`)
   }
 
-  return response.json()
+  const data = await response.json()
+  
+  if (!data || typeof data !== 'object') {
+    console.error('Invalid response from OpenRouter:', data)
+    throw new Error('Invalid response format from OpenRouter API')
+  }
+  
+  return data
 }
 
 /**
@@ -301,6 +313,90 @@ export async function getAvailableModels(): Promise<any[]> {
 
   const data = await response.json()
   return data.data || []
+}
+
+/**
+ * Generate a rental agreement using Claude Sonnet
+ */
+export async function generateRentalAgreement(
+  details: {
+    renterName: string
+    ownerName: string
+    listingTitle: string
+    listingDescription?: string
+    startDate: string
+    endDate: string
+    totalPrice: number
+    pricePerDay: number
+    listingAddress?: string
+    category?: string
+    condition?: string
+    deposit?: number
+    specialTerms?: string
+  }
+): Promise<string> {
+  const systemPrompt = `You are a legal document generator specializing in rental agreements. 
+  Create a comprehensive, legally binding rental agreement that protects both parties.
+  
+  The agreement should include:
+  1. Clear identification of parties (Renter and Owner)
+  2. Detailed description of the rental item(s)
+  3. Rental period and dates
+  4. Payment terms and amounts
+  5. Security deposit (if applicable)
+  6. Responsibilities of both parties
+  7. Damage and liability clauses
+  8. Cancellation and refund policies
+  9. Dispute resolution procedures
+  10. Governing law and jurisdiction
+  11. Signature blocks for both parties
+  
+  Use clear, professional language that is easy to understand while being legally comprehensive.
+  Format the agreement properly with sections and subsections.`
+
+  const userMessage = `Generate a rental agreement with the following details:
+  
+  Renter: ${details.renterName}
+  Owner: ${details.ownerName}
+  Item: ${details.listingTitle}
+  ${details.listingDescription ? `Description: ${details.listingDescription}` : ''}
+  ${details.category ? `Category: ${details.category}` : ''}
+  ${details.condition ? `Condition: ${details.condition}` : ''}
+  Rental Period: ${details.startDate} to ${details.endDate}
+  Total Rental Price: $${details.totalPrice}
+  Daily Rate: $${details.pricePerDay}
+  ${details.deposit ? `Security Deposit: $${details.deposit}` : ''}
+  ${details.listingAddress ? `Location: ${details.listingAddress}` : ''}
+  ${details.specialTerms ? `Special Terms: ${details.specialTerms}` : ''}
+  
+  Platform: Lendify (peer-to-peer rental marketplace)
+  
+  Please generate a comprehensive rental agreement that legally binds both parties and includes provisions for:
+  - Item damage or loss
+  - Late returns
+  - Proper use and care
+  - Insurance requirements
+  - Emergency contacts
+  - Platform dispute resolution through Lendify`
+
+  const messages: OpenRouterMessage[] = [
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userMessage }
+  ]
+
+  // Use Claude Sonnet for better quality legal documents
+  const response = await callOpenRouter(messages, {
+    model: 'anthropic/claude-3.5-sonnet-20241022',
+    maxTokens: 4000,
+    temperature: 0.3, // Lower temperature for more consistent legal language
+  })
+  
+  if (!response.choices || response.choices.length === 0) {
+    console.error('OpenRouter response:', response)
+    throw new Error('No response from AI model')
+  }
+
+  return response.choices[0]?.message?.content || 'Failed to generate rental agreement.'
 }
 
 /**

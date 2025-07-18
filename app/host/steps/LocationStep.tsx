@@ -25,7 +25,7 @@ export default function LocationStep() {
   const [isLocating, setIsLocating] = useState(false)
 
   const address = watch('address') || ''
-  const location = watch('location') || { lat: 37.7749, lng: -122.4194 }
+  const location = watch('location') || { lat: 1.3521, lng: 103.8198 }
 
 
   const getCurrentLocation = () => {

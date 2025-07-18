@@ -83,7 +83,9 @@ export default function CreateListingPage() {
   }
 
   const onSubmit = async (data: any) => {
+    console.log('=== FORM SUBMISSION STARTED ===')
     console.log('onSubmit called! Current step:', currentStep)
+    console.log('Form data received:', JSON.stringify(data, null, 2))
     console.trace('Submit call stack')
     
     // Double-check we're on the final step
@@ -97,6 +99,7 @@ export default function CreateListingPage() {
     setIsSubmitting(true)
     
     try {
+      console.log('=== VALIDATION PHASE ===')
       console.log('Creating listing with form data:', data)
       
       // Validate required fields before submission
@@ -112,15 +115,21 @@ export default function CreateListingPage() {
         throw new Error('Please set a valid location')
       }
       
+      console.log('✅ All validations passed')
+      
       // Prepare the listing data for API
       const listingData = {
         ...data,
-        status: 'active' // Make sure listing is active so it appears in searches
+        // Only set status to 'active' if photos are provided, otherwise keep as 'draft'
+        status: data.photos && data.photos.length > 0 ? 'active' : 'draft'
       }
       
-      console.log('Sending listing data to API:', listingData)
+      console.log('=== API CALL PHASE ===')
+      console.log('Sending listing data to API:', JSON.stringify(listingData, null, 2))
+      setDebugInfo(prev => [...prev, `Making API call to /api/listings...`])
       
       // Call the API to create the listing
+      const startTime = Date.now()
       const response = await fetch('/api/listings', {
         method: 'POST',
         headers: {
@@ -128,29 +137,46 @@ export default function CreateListingPage() {
         },
         body: JSON.stringify(listingData)
       })
+      const endTime = Date.now()
+      
+      console.log(`API call completed in ${endTime - startTime}ms`)
+      console.log('Response status:', response.status)
+      console.log('Response headers:', Object.fromEntries(response.headers.entries()))
+      setDebugInfo(prev => [...prev, `API response status: ${response.status} (${endTime - startTime}ms)`])
 
       if (!response.ok) {
         const errorData = await response.json()
+        console.error('=== API ERROR ===')
         console.error('API error response:', errorData)
+        setDebugInfo(prev => [...prev, `API ERROR: ${JSON.stringify(errorData)}`])
         throw new Error(errorData.message || errorData.error || `HTTP error! status: ${response.status}`)
       }
 
       const result = await response.json()
+      console.log('=== SUCCESS ===')
       console.log('Listing created successfully:', result)
       setDebugInfo(prev => [...prev, `SUCCESS: Listing created with ID ${result.data?.id}`])
       
       // Clear the draft and redirect to My Listings page
       localStorage.removeItem('listing-draft')
+      console.log('Redirecting to dashboard...')
+      setDebugInfo(prev => [...prev, `Redirecting to /dashboard/listings?new=true`])
       router.push('/dashboard/listings?new=true')
       
     } catch (error: any) {
-      console.error('Failed to create listing:', error)
+      console.error('=== SUBMISSION ERROR ===')
+      console.error('Error type:', error.constructor.name)
+      console.error('Error message:', error.message)
+      console.error('Full error:', error)
+      console.error('Error stack:', error.stack)
       setDebugInfo(prev => [...prev, `ERROR: ${error.message}`])
+      setDebugInfo(prev => [...prev, `ERROR TYPE: ${error.constructor.name}`])
       
       // Show error to user - you might want to add a toast or error state here
       alert(`Failed to create listing: ${error.message}`)
     } finally {
       setIsSubmitting(false)
+      console.log('=== FORM SUBMISSION ENDED ===')
     }
   }
 
@@ -476,9 +502,49 @@ export default function CreateListingPage() {
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      onClick={() => {
+                      onClick={async () => {
+                        console.log('=== CREATE LISTING BUTTON CLICKED ===')
                         console.log('Create Listing button clicked on final step')
                         setDebugInfo(prev => [...prev, `Create Listing button clicked at step ${currentStep}`])
+                        
+                        // Check current form state
+                        const currentErrors = methods.formState.errors
+                        const currentValues = methods.getValues()
+                        const isFormValid = methods.formState.isValid
+                        
+                        console.log('Current form errors:', currentErrors)
+                        console.log('Current form values:', currentValues)
+                        console.log('Form is valid:', isFormValid)
+                        console.log('Form state:', methods.formState)
+                        
+                        setDebugInfo(prev => [...prev, `Form valid: ${isFormValid}`])
+                        setDebugInfo(prev => [...prev, `Form errors: ${JSON.stringify(currentErrors)}`])
+                        
+                        // Manual validation trigger
+                        console.log('Triggering manual validation...')
+                        const validationResult = await methods.trigger()
+                        console.log('Manual validation result:', validationResult)
+                        console.log('Errors after validation:', methods.formState.errors)
+                        
+                        setDebugInfo(prev => [...prev, `Manual validation: ${validationResult}`])
+                        setDebugInfo(prev => [...prev, `Errors after validation: ${JSON.stringify(methods.formState.errors)}`])
+                        
+                        if (!validationResult) {
+                          console.error('VALIDATION FAILED - Cannot submit form')
+                          const errors = methods.formState.errors
+                          let errorMessage = 'Please fix the following errors:\n'
+                          
+                          // Format errors in a user-friendly way
+                          Object.entries(errors).forEach(([field, error]) => {
+                            if (error && typeof error === 'object' && 'message' in error) {
+                              errorMessage += `\n• ${field}: ${error.message}`
+                            }
+                          })
+                          
+                          alert(errorMessage)
+                        } else {
+                          console.log('Validation passed, form should submit now')
+                        }
                       }}
                     >
                       {isSubmitting ? 'Creating...' : 'Create Listing'}
@@ -519,10 +585,47 @@ export default function CreateListingPage() {
                 <Button
                   type="button"
                   size="sm"
-                  onClick={(e) => {
+                  onClick={async (e) => {
+                    console.log('=== MOBILE CREATE BUTTON CLICKED ===')
                     console.log('Mobile Create button clicked at final step')
                     setDebugInfo(prev => [...prev, `Mobile Create button clicked at step ${currentStep}`])
-                    handleSubmit(onSubmit)(e)
+                    
+                    // Check current form state
+                    const currentErrors = methods.formState.errors
+                    const currentValues = methods.getValues()
+                    const isFormValid = methods.formState.isValid
+                    
+                    console.log('Current form errors:', currentErrors)
+                    console.log('Current form values:', currentValues)
+                    console.log('Form is valid:', isFormValid)
+                    
+                    setDebugInfo(prev => [...prev, `Mobile - Form valid: ${isFormValid}`])
+                    setDebugInfo(prev => [...prev, `Mobile - Form errors: ${JSON.stringify(currentErrors)}`])
+                    
+                    // Manual validation trigger
+                    const validationResult = await methods.trigger()
+                    console.log('Mobile - Manual validation result:', validationResult)
+                    console.log('Mobile - Errors after validation:', methods.formState.errors)
+                    
+                    setDebugInfo(prev => [...prev, `Mobile - Manual validation: ${validationResult}`])
+                    
+                    if (!validationResult) {
+                      console.error('MOBILE VALIDATION FAILED - Cannot submit form')
+                      const errors = methods.formState.errors
+                      let errorMessage = 'Please fix the following errors:\n'
+                      
+                      // Format errors in a user-friendly way
+                      Object.entries(errors).forEach(([field, error]) => {
+                        if (error && typeof error === 'object' && 'message' in error) {
+                          errorMessage += `\n• ${field}: ${error.message}`
+                        }
+                      })
+                      
+                      alert(errorMessage)
+                    } else {
+                      console.log('Mobile validation passed, calling handleSubmit')
+                      handleSubmit(onSubmit)(e)
+                    }
                   }}
                   disabled={isSubmitting}
                 >

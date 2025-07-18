@@ -37,7 +37,8 @@ export enum ErrorCode {
   CONFLICT = 'CONFLICT',
   RATE_LIMIT = 'RATE_LIMIT',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
-  BAD_REQUEST = 'BAD_REQUEST'
+  BAD_REQUEST = 'BAD_REQUEST',
+  DATABASE_ERROR = 'DATABASE_ERROR'
 }
 
 /**
@@ -110,8 +111,9 @@ export function handleValidationError(error: unknown): NextResponse {
     )
   }
 
-  // Safe mapping of error details - ZodError always has errors array
-  const details = (error as any).errors.map((err: any) => ({
+  // Safe mapping of error details - ZodError uses 'issues' property
+  const errorArray = error.issues || []
+  const details = errorArray.map((err: any) => ({
     field: err.path?.join('.') || 'unknown',
     message: err.message || 'Validation error',
     code: err.code || 'custom'

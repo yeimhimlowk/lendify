@@ -1,13 +1,16 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useSearchParams } from 'next/navigation'
 import { useUser } from '@/lib/auth/use-auth'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import { ReviewPrompt } from '@/components/reviews/ReviewPrompt'
 import { MessageUserIconButton } from '@/components/chat/MessageUserButton'
+import BookingAgreementManager from '@/components/host/BookingAgreementManager'
 import { 
   Calendar, 
   MapPin, 
@@ -20,7 +23,8 @@ import {
   XCircle,
   CheckCircle,
   AlertCircle,
-  Loader2
+  Loader2,
+  FileText
 } from 'lucide-react'
 
 interface Booking {
@@ -28,6 +32,15 @@ interface Booking {
   listing_id: string
   renter_id: string
   owner_id: string
+  rental_agreements?: Array<{
+    id: string
+    status: string
+    created_at: string
+    signed_by_owner: boolean
+    signed_by_renter: boolean
+    sent_at: string | null
+    expires_at: string | null
+  }>
   start_date: string
   end_date: string
   total_price: number
@@ -37,19 +50,23 @@ interface Booking {
   listing: {
     id: string
     title: string
-    location: string
-    images: string[]
+    location?: string
+    address?: string
+    images?: string[]
+    photos?: string[]
     price_per_day: number
   }
   renter?: {
     id: string
     full_name: string
     avatar_url: string
+    email?: string
   }
   owner?: {
     id: string
     full_name: string
     avatar_url: string
+    email?: string
   }
 }
 
@@ -71,49 +88,81 @@ const statusIcons = {
   cancelled: XCircle
 }
 
-export default function BookingsPage() {
+type ViewMode = 'all' | 'guest' | 'host'
+
+function BookingsContent() {
   const { user } = useUser()
+  const searchParams = useSearchParams()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [filteredBookings, setFilteredBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<ViewMode>('all')
   const [activeTab, setActiveTab] = useState<BookingStatus>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null)
-
-  // Fetch bookings data
+  const [showSuccessMessage, setShowSuccessMessage] = useState(false)
+  
+  // Check for success message
   useEffect(() => {
-    const fetchBookings = async () => {
-      if (!user) return
+    if (searchParams.get('success') === 'agreement-signed') {
+      setShowSuccessMessage(true)
+      // Hide message after 5 seconds
+      const timer = setTimeout(() => {
+        setShowSuccessMessage(false)
+      }, 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [searchParams])
 
-      try {
-        setLoading(true)
-        const response = await fetch('/api/bookings', {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        })
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch bookings')
-        }
-
-        const data = await response.json()
-        setBookings(data.bookings || [])
-      } catch (err) {
-        console.error('Error fetching bookings:', err)
-        setError('Failed to load bookings. Please try again.')
-      } finally {
-        setLoading(false)
-      }
+  // Fetch bookings function
+  const fetchBookings = async () => {
+    if (!user) {
+      console.log('No user found, skipping bookings fetch')
+      return
     }
 
+    console.log('Fetching bookings for user:', user.id, user.email)
+
+    try {
+      setLoading(true)
+      const response = await fetch('/api/bookings', {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch bookings')
+      }
+
+      const data = await response.json()
+      console.log('Bookings API response:', data)
+      setBookings(data.bookings || data.data || [])
+    } catch (err) {
+      console.error('Error fetching bookings:', err)
+      setError('Failed to load bookings. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Fetch bookings data on mount
+  useEffect(() => {
     fetchBookings()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user])
 
-  // Filter bookings based on status and search
+  // Filter bookings based on view mode, status and search
   useEffect(() => {
     let filtered = bookings
+
+    // Filter by view mode
+    if (viewMode === 'guest') {
+      filtered = filtered.filter(booking => booking.renter_id === user?.id)
+    } else if (viewMode === 'host') {
+      filtered = filtered.filter(booking => booking.owner_id === user?.id)
+    }
 
     // Filter by status
     if (activeTab !== 'all') {
@@ -124,12 +173,12 @@ export default function BookingsPage() {
     if (searchQuery) {
       filtered = filtered.filter(booking => 
         booking.listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        booking.listing.location.toLowerCase().includes(searchQuery.toLowerCase())
+        (booking.listing.address || booking.listing.location || '').toLowerCase().includes(searchQuery.toLowerCase())
       )
     }
 
     setFilteredBookings(filtered)
-  }, [bookings, activeTab, searchQuery])
+  }, [bookings, activeTab, searchQuery, viewMode, user])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -145,13 +194,21 @@ export default function BookingsPage() {
   }, [])
 
   const getStatusCounts = () => {
+    // Filter bookings by view mode first
+    let viewFilteredBookings = bookings
+    if (viewMode === 'guest') {
+      viewFilteredBookings = bookings.filter(b => b.renter_id === user?.id)
+    } else if (viewMode === 'host') {
+      viewFilteredBookings = bookings.filter(b => b.owner_id === user?.id)
+    }
+
     const counts = {
-      all: bookings.length,
-      pending: bookings.filter(b => b.status === 'pending').length,
-      confirmed: bookings.filter(b => b.status === 'confirmed').length,
-      active: bookings.filter(b => b.status === 'active').length,
-      completed: bookings.filter(b => b.status === 'completed').length,
-      cancelled: bookings.filter(b => b.status === 'cancelled').length
+      all: viewFilteredBookings.length,
+      pending: viewFilteredBookings.filter(b => b.status === 'pending').length,
+      confirmed: viewFilteredBookings.filter(b => b.status === 'confirmed').length,
+      active: viewFilteredBookings.filter(b => b.status === 'active').length,
+      completed: viewFilteredBookings.filter(b => b.status === 'completed').length,
+      cancelled: viewFilteredBookings.filter(b => b.status === 'cancelled').length
     }
     return counts
   }
@@ -253,6 +310,59 @@ export default function BookingsPage() {
         </Button>
       </div>
 
+      {/* Success Message */}
+      {showSuccessMessage && (
+        <Alert className="mb-6 border-green-200 bg-green-50">
+          <CheckCircle className="h-4 w-4 text-green-600" />
+          <AlertDescription className="text-green-800">
+            Rental agreement signed successfully! The booking is now confirmed.
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* View Mode Tabs */}
+      <div className="flex items-center gap-2 mb-6 p-1 bg-gray-100 rounded-lg w-fit">
+        <button
+          onClick={() => {
+            setViewMode('all')
+            setActiveTab('all')
+          }}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            viewMode === 'all'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          All Bookings
+        </button>
+        <button
+          onClick={() => {
+            setViewMode('guest')
+            setActiveTab('all')
+          }}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            viewMode === 'guest'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          My Rentals
+        </button>
+        <button
+          onClick={() => {
+            setViewMode('host')
+            setActiveTab('all')
+          }}
+          className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${
+            viewMode === 'host'
+              ? 'bg-white text-gray-900 shadow-sm'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+        >
+          My Listings
+        </button>
+      </div>
+
       {/* Search and Filters */}
       <div className="flex items-center gap-4 mb-6">
         <div className="relative flex-1 max-w-md">
@@ -303,10 +413,19 @@ export default function BookingsPage() {
             <Calendar className="h-8 w-8 text-gray-400" />
           </div>
           <h3 className="text-lg font-semibold text-gray-900 mb-2">
-            {activeTab === 'all' ? 'No bookings yet' : `No ${activeTab} bookings`}
+            {viewMode === 'guest' 
+              ? (activeTab === 'all' ? 'No rentals yet' : `No ${activeTab} rentals`)
+              : viewMode === 'host'
+              ? (activeTab === 'all' ? 'No bookings for your listings' : `No ${activeTab} bookings`)
+              : (activeTab === 'all' ? 'No bookings yet' : `No ${activeTab} bookings`)
+            }
           </h3>
           <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            {activeTab === 'all' 
+            {viewMode === 'guest' 
+              ? "You haven't rented any items yet. Start exploring items to rent!"
+              : viewMode === 'host'
+              ? "Your listings haven't received any bookings yet."
+              : activeTab === 'all' 
               ? "You haven't made any bookings yet. Start exploring items to rent!"
               : `You don't have any ${activeTab} bookings at the moment.`
             }
@@ -331,7 +450,7 @@ export default function BookingsPage() {
                     <div className="flex items-center gap-4 mb-4">
                       <div className="relative w-16 h-16 rounded-lg overflow-hidden">
                         <Image
-                          src={booking.listing.images[0] || '/placeholder-image.jpg'}
+                          src={booking.listing.photos?.[0] || booking.listing.images?.[0] || '/placeholder-image.jpg'}
                           alt={booking.listing.title}
                           fill
                           className="object-cover"
@@ -350,7 +469,7 @@ export default function BookingsPage() {
                         <div className="flex items-center text-sm text-gray-600 gap-4">
                           <div className="flex items-center gap-1">
                             <MapPin className="h-4 w-4" />
-                            {booking.listing.location}
+                            {booking.listing.address || booking.listing.location || 'Unknown location'}
                           </div>
                           <div className="flex items-center gap-1">
                             <Calendar className="h-4 w-4" />
@@ -454,6 +573,39 @@ export default function BookingsPage() {
                                     Cancel Booking
                                   </button>
                                 )}
+                                {booking.status === 'cancelled' && (
+                                  <button 
+                                    onClick={async () => {
+                                      if (confirm('Are you sure you want to permanently delete this cancelled booking?')) {
+                                        try {
+                                          const response = await fetch(`/api/bookings/${booking.id}`, {
+                                            method: 'DELETE'
+                                          })
+                                          if (response.ok) {
+                                            // Remove booking from list
+                                            setBookings(prev => prev.filter(b => b.id !== booking.id))
+                                          }
+                                        } catch (err) {
+                                          console.error('Error deleting booking:', err)
+                                        }
+                                      }
+                                      setDropdownOpen(null)
+                                    }}
+                                    className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 transition-colors"
+                                  >
+                                    Delete Permanently
+                                  </button>
+                                )}
+                                {isOwner && booking.status === 'confirmed' && (
+                                  <Link
+                                    href={`/dashboard/bookings/${booking.id}/agreement`}
+                                    onClick={() => setDropdownOpen(null)}
+                                    className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors flex items-center"
+                                  >
+                                    <FileText className="h-4 w-4 mr-2" />
+                                    Manage Agreement
+                                  </Link>
+                                )}
                                 <button 
                                   onClick={() => setDropdownOpen(null)}
                                   className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
@@ -466,6 +618,93 @@ export default function BookingsPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Rental Agreement Section - Show for pending/confirmed bookings for both parties */}
+                    {(booking.status === 'pending' || booking.status === 'confirmed') && (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        {isOwner ? (
+                          // Owner can create and manage agreements
+                          <BookingAgreementManager
+                            booking={{
+                              id: booking.id,
+                              start_date: booking.start_date,
+                              end_date: booking.end_date,
+                              status: booking.status,
+                              listing: {
+                                title: booking.listing.title
+                              },
+                              renter: {
+                                full_name: booking.renter?.full_name || 'Unknown',
+                                email: booking.renter?.email || ''
+                              }
+                            }}
+                            agreements={booking.rental_agreements || []}
+                            onAgreementCreated={() => {
+                              // Refresh bookings to show new agreement
+                              fetchBookings()
+                            }}
+                          />
+                        ) : (
+                          // Renter can view agreements
+                          <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                              <h4 className="text-sm font-medium text-gray-900">Rental Agreement</h4>
+                              {booking.status === 'pending' && (
+                                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
+                                  Waiting for owner to create agreement
+                                </span>
+                              )}
+                            </div>
+                            
+                            {booking.rental_agreements && booking.rental_agreements.length > 0 ? (
+                              <div className="space-y-2">
+                                {booking.rental_agreements.map((agreement: any) => (
+                                  <div key={agreement.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                    <div className="flex items-center gap-3">
+                                      <FileText className="h-5 w-5 text-gray-500" />
+                                      <div>
+                                        <p className="text-sm font-medium text-gray-900">
+                                          Agreement #{agreement.id.slice(0, 8)}
+                                        </p>
+                                        <p className="text-xs text-gray-500">
+                                          Status: {agreement.status === 'draft' ? 'Draft' : 
+                                                  agreement.status === 'sent' ? 'Ready to Sign' :
+                                                  agreement.status === 'signed' ? 'Fully Signed' : 
+                                                  agreement.status}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      {agreement.status === 'sent' && !agreement.signed_by_renter && (
+                                        <span className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                                          Action required
+                                        </span>
+                                      )}
+                                      <Button variant="outline" size="sm" asChild>
+                                        <Link href={`/agreements/${agreement.id}`}>
+                                          <Eye className="h-4 w-4 mr-1" />
+                                          {agreement.status === 'sent' && !agreement.signed_by_renter ? 'Sign' : 'View'}
+                                        </Link>
+                                      </Button>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="text-center py-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <FileText className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                                <p className="text-sm text-gray-600">
+                                  No rental agreement yet
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  The owner will create one soon
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Review Prompt for Completed Bookings */}
                     {booking.status === 'completed' && (
@@ -502,5 +741,19 @@ export default function BookingsPage() {
         </div>
       )}
     </div>
+  )
+}
+
+export default function BookingsPage() {
+  return (
+    <Suspense fallback={
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-[var(--primary)]" />
+        </div>
+      </div>
+    }>
+      <BookingsContent />
+    </Suspense>
   )
 }

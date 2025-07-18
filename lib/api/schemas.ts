@@ -168,7 +168,7 @@ export const searchQuerySchema = z.object({
   tags: z.string().optional(),
   available_from: z.string().datetime().optional(),
   available_to: z.string().datetime().optional(),
-  sortBy: z.enum(['relevance', 'price_per_day', 'created_at', 'distance']).default('relevance'),
+  sortBy: z.enum(['relevance', 'price_per_day', 'created_at', 'distance', 'price_low', 'price_high', 'newest', 'rating']).default('relevance'),
   sortOrder: z.enum(['asc', 'desc']).default('desc')
 }).refine(_data => {
   // If no query is provided but other params are, that's OK for filtering

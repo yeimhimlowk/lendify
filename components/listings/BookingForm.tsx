@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { BookingCalendar } from "./BookingCalendar"
 import { Calendar, CreditCard, CheckCircle, AlertCircle, Loader2 } from "lucide-react"
-import { format, differenceInDays } from "date-fns"
+import { format, differenceInDays, isValid, isBefore, startOfDay } from "date-fns"
 import { DateRange } from "react-day-picker"
 import { Button } from "@/components/ui/button"
 import { createClient } from "@/lib/supabase/client"
@@ -123,13 +123,46 @@ export function BookingForm({
         return
       }
 
-      const totalDays = differenceInDays(selectedRange.to, selectedRange.from)
+      // Validate dates before calculation
+      const startDate = selectedRange.from
+      const endDate = selectedRange.to
+      
+      if (!isValid(startDate) || !isValid(endDate)) {
+        setError('Invalid dates selected. Please try again.')
+        setBookingStatus('error')
+        return
+      }
+      
+      // Ensure end date is after or equal to start date
+      if (isBefore(endDate, startDate)) {
+        setError('End date must be after start date')
+        setBookingStatus('error')
+        return
+      }
+      
+      // Calculate days safely
+      let totalDays = 0
+      try {
+        totalDays = differenceInDays(endDate, startDate)
+        // Minimum 1 day booking
+        if (totalDays === 0) totalDays = 1
+      } catch (dateError) {
+        console.error('Date calculation error:', dateError)
+        setError('Error calculating booking duration. Please try again.')
+        setBookingStatus('error')
+        return
+      }
+      
       const totalPrice = totalDays * pricePerDay
+
+      // Use startOfDay to normalize times and ensure consistent date handling
+      const normalizedStartDate = startOfDay(startDate)
+      const normalizedEndDate = startOfDay(endDate)
 
       const bookingData: BookingData = {
         listing_id: listingId,
-        start_date: selectedRange.from.toISOString(),
-        end_date: selectedRange.to.toISOString(),
+        start_date: normalizedStartDate.toISOString(),
+        end_date: normalizedEndDate.toISOString(),
         total_price: totalPrice
       }
 
@@ -144,14 +177,57 @@ export function BookingForm({
       const result = await response.json()
 
       if (!response.ok) {
-        throw new Error(result.error || 'Failed to create booking')
+        console.error('Booking API error:', result)
+        
+        // Extract error message from various response formats
+        const errorMessage = result.error?.message || 
+                           result.message || 
+                           result.error || 
+                           'Failed to create booking'
+        
+        throw new Error(errorMessage)
       }
 
-      setBookingId(result.data.id)
+      console.log('Booking created successfully:', result)
+      const bookingId = result.data?.id || result.id
+      if (!bookingId) {
+        console.error('No booking ID in response:', result)
+        throw new Error('Booking created but no ID returned')
+      }
+      setBookingId(bookingId)
+      
+      // Generate rental agreement
+      try {
+        const agreementResponse = await fetch('/api/agreements/generate', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            bookingId: bookingId
+          })
+        })
+        
+        if (!agreementResponse.ok) {
+          const errorData = await agreementResponse.json()
+          console.warn('Failed to generate agreement (non-critical):', errorData)
+        }
+      } catch (agreementError) {
+        console.warn('Agreement generation error (non-critical):', agreementError)
+        // Don't fail the booking if agreement generation fails
+      }
+      
       setBookingStatus('success')
       
       // Refresh unavailable dates
       fetchUnavailableDates()
+      
+      // Optionally redirect to bookings page after a delay
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          window.location.href = '/dashboard/bookings'
+        }
+      }, 3000)
       
     } catch (error) {
       console.error('Booking error:', error)
@@ -167,9 +243,23 @@ export function BookingForm({
     setError(null)
   }
 
-  const totalDays = selectedRange?.from && selectedRange?.to 
-    ? differenceInDays(selectedRange.to, selectedRange.from) 
-    : 0
+  // Calculate total days safely
+  let totalDays = 0
+  if (selectedRange?.from && selectedRange?.to) {
+    try {
+      const startDate = selectedRange.from
+      const endDate = selectedRange.to
+      
+      if (isValid(startDate) && isValid(endDate) && !isBefore(endDate, startDate)) {
+        totalDays = differenceInDays(endDate, startDate)
+        // Minimum 1 day booking
+        if (totalDays === 0) totalDays = 1
+      }
+    } catch (error) {
+      console.error('Date calculation error in render:', error)
+      totalDays = 0
+    }
+  }
   const totalPrice = totalDays * pricePerDay
 
   // Loading state for unavailable dates
@@ -312,7 +402,7 @@ export function BookingForm({
               <CheckCircle className="h-16 w-16 text-green-500 mx-auto mb-4" />
               <h3 className="text-xl font-bold text-gray-900 mb-2">Booking Request Sent!</h3>
               <p className="text-gray-600 mb-4">
-                Your booking request has been sent to the owner. You&apos;ll receive a confirmation once they approve it.
+                Your booking request has been sent to the owner. A rental agreement has been generated and will be available in your dashboard once the owner approves.
               </p>
               {bookingId && (
                 <p className="text-sm text-gray-500 mb-6">

@@ -44,12 +44,12 @@ export default function SearchMapResults({
   searchLocation,
   className,
 }: SearchMapResultsProps) {
-  const [viewMode, setViewMode] = useState<'map' | 'grid'>('grid')
+  const [viewMode, setViewMode] = useState<'map' | 'grid'>('map')
   const [selectedListing, setSelectedListing] = useState<ListingWithLocation | null>(null)
   const [viewState, setViewState] = useState({
-    longitude: searchLocation?.lng || -122.4194,
-    latitude: searchLocation?.lat || 37.7749,
-    zoom: searchLocation ? 12 : 10
+    longitude: searchLocation?.lng || 103.8198,
+    latitude: searchLocation?.lat || 1.3521,
+    zoom: searchLocation ? 12 : 11
   })
   const [mapLoaded, setMapLoaded] = useState(false)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -58,7 +58,6 @@ export default function SearchMapResults({
   const listingsWithLocation: ListingWithLocation[] = (listings as any)
     .map((listing: any) => {
       // Try to extract coordinates from location data
-      // This assumes the API returns location data - you may need to adjust based on your API response
       const location = extractLocationFromListing(listing)
       return { ...listing, location }
     })
@@ -364,6 +363,17 @@ function extractLocationFromListing(listing: Listing): { lat: number, lng: numbe
   if (!location) return null
   
   try {
+    // If location has lat/lng properties directly (from our API)
+    if (location.lat !== undefined && location.lng !== undefined) {
+      return { lat: location.lat, lng: location.lng }
+    }
+    
+    // If location is GeoJSON format
+    if (typeof location === 'object' && location.type === 'Point' && location.coordinates) {
+      const [lng, lat] = location.coordinates
+      return { lat, lng }
+    }
+    
     // If location is already an object with coordinates
     if (typeof location === 'object' && location.coordinates) {
       const [lng, lat] = location.coordinates
@@ -377,17 +387,6 @@ function extractLocationFromListing(listing: Listing): { lat: number, lng: numbe
         const [lng, lat] = match[1].split(' ').map(Number)
         return { lat, lng }
       }
-    }
-    
-    // If location has lat/lng properties directly
-    if (location.lat !== undefined && location.lng !== undefined) {
-      return { lat: location.lat, lng: location.lng }
-    }
-    
-    // Try to extract from PostGIS JSON format
-    if (typeof location === 'object' && location.type === 'Point' && location.coordinates) {
-      const [lng, lat] = location.coordinates
-      return { lat, lng }
     }
     
     return null

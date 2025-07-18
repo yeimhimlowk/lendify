@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useMemo } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useDebounce } from '@/hooks/useDebounce'
 import { useGeolocation } from '@/hooks/useGeolocation'
@@ -10,6 +10,7 @@ interface SearchFilters {
   minPrice?: string
   maxPrice?: string
   categories?: string[]
+  condition?: string
   location?: string
   latitude?: string
   longitude?: string
@@ -51,12 +52,13 @@ export function useSearch() {
   const [error, setError] = useState<string | null>(null)
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | undefined>()
   
-  // Parse filters from URL
-  const filters: SearchFilters = {
+  // Parse filters from URL - memoized to prevent recreating on every render
+  const filters = useMemo<SearchFilters>(() => ({
     query: searchParams.get('q') || undefined,
     minPrice: searchParams.get('minPrice') || undefined,
     maxPrice: searchParams.get('maxPrice') || undefined,
     categories: searchParams.get('categories')?.split(',').filter(Boolean),
+    condition: searchParams.get('condition') || undefined,
     location: searchParams.get('location') || undefined,
     latitude: searchParams.get('latitude') || undefined,
     longitude: searchParams.get('longitude') || undefined,
@@ -64,7 +66,7 @@ export function useSearch() {
     availableFrom: searchParams.get('from') || undefined,
     availableTo: searchParams.get('to') || undefined,
     sortBy: searchParams.get('sort') || undefined,
-  }
+  }), [searchParams])
   
   // Initialize coordinates from URL parameters
   useEffect(() => {
@@ -78,6 +80,7 @@ export function useSearch() {
     }
   }, [filters.latitude, filters.longitude])
   
+  // Debounce only the query text, not other filters
   const debouncedQuery = useDebounce(filters.query, 300)
   
   // Fetch search results
@@ -88,10 +91,14 @@ export function useSearch() {
     try {
       const params = new URLSearchParams()
       
+      // Use debounced query for text search
       if (debouncedQuery) params.append('query', debouncedQuery)
+      
+      // Add all other filters immediately (no debounce)
       if (filters.minPrice) params.append('minPrice', filters.minPrice)
       if (filters.maxPrice) params.append('maxPrice', filters.maxPrice)
       if (filters.categories?.length) params.append('category', filters.categories.join(','))
+      if (filters.condition) params.append('condition', filters.condition)
       if (filters.location) params.append('location', filters.location)
       if (filters.latitude) params.append('latitude', filters.latitude)
       if (filters.longitude) params.append('longitude', filters.longitude)
@@ -107,9 +114,21 @@ export function useSearch() {
         throw new Error(errorData.error || errorData.message || `Search failed: ${response.status}`)
       }
       
-      const data: SearchResponse = await response.json()
-      setResults(data.results || [])
-      setTotalCount(data.totalCount || 0)
+      const data = await response.json()
+      // Handle both old and new API response formats
+      if (data.success && data.data) {
+        // New format from search API
+        setResults(data.data || [])
+        setTotalCount(data.pagination?.total || 0)
+      } else if (data.results) {
+        // Old format
+        setResults(data.results || [])
+        setTotalCount(data.totalCount || 0)
+      } else {
+        // Fallback
+        setResults([])
+        setTotalCount(0)
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed')
       setResults([])
@@ -117,7 +136,7 @@ export function useSearch() {
     } finally {
       setIsLoading(false)
     }
-  }, [debouncedQuery, filters.minPrice, filters.maxPrice, filters.categories, filters.location, filters.latitude, filters.longitude, filters.radius, filters.availableFrom, filters.availableTo, filters.sortBy])
+  }, [filters, debouncedQuery]) // Dependencies simplified - filters is memoized
   
   // Update URL with new filters
   const updateFilters = useCallback((newFilters: Partial<SearchFilters>) => {
@@ -152,8 +171,12 @@ export function useSearch() {
   
   // Clear all filters
   const clearFilters = useCallback(() => {
+    // Clear all URL parameters
     router.push('/search')
+    // Clear local state
     setCoordinates(undefined)
+    setError(null)
+    // Results will be refetched automatically when URL changes
   }, [router])
   
   // Use current location for search
@@ -197,10 +220,27 @@ export function useSearch() {
     })
   }, [updateFilters])
   
-  // Fetch results when filters change
+  // Trigger search when non-query filters change immediately
   useEffect(() => {
-    fetchResults()
-  }, [fetchResults])
+    // Skip if only query is being typed (debounced separately)
+    const hasNonQueryFilters = filters.minPrice || filters.maxPrice || 
+      filters.categories?.length || filters.condition || filters.location ||
+      filters.latitude || filters.longitude || filters.radius ||
+      filters.availableFrom || filters.availableTo || filters.sortBy
+    
+    if (hasNonQueryFilters || !filters.query) {
+      fetchResults()
+    }
+  }, [filters.minPrice, filters.maxPrice, filters.categories, filters.condition,
+      filters.location, filters.latitude, filters.longitude, filters.radius,
+      filters.availableFrom, filters.availableTo, filters.sortBy, fetchResults])
+  
+  // Trigger search when debounced query changes
+  useEffect(() => {
+    if (debouncedQuery !== undefined) {
+      fetchResults()
+    }
+  }, [debouncedQuery, fetchResults])
   
   return {
     results,

@@ -384,6 +384,78 @@ export type Database = {
           },
         ]
       }
+      rental_agreements: {
+        Row: {
+          id: string
+          booking_id: string
+          agreement_text: string
+          custom_terms: string | null
+          status: string
+          created_by: string
+          signed_by_renter: boolean
+          signed_by_owner: boolean
+          renter_signature_data: Json | null
+          owner_signature_data: Json | null
+          renter_signed_at: string | null
+          owner_signed_at: string | null
+          sent_at: string | null
+          expires_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          booking_id: string
+          agreement_text: string
+          custom_terms?: string | null
+          status?: string
+          created_by: string
+          signed_by_renter?: boolean
+          signed_by_owner?: boolean
+          renter_signature_data?: Json | null
+          owner_signature_data?: Json | null
+          renter_signed_at?: string | null
+          owner_signed_at?: string | null
+          sent_at?: string | null
+          expires_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          booking_id?: string
+          agreement_text?: string
+          custom_terms?: string | null
+          status?: string
+          created_by?: string
+          signed_by_renter?: boolean
+          signed_by_owner?: boolean
+          renter_signature_data?: Json | null
+          owner_signature_data?: Json | null
+          renter_signed_at?: string | null
+          owner_signed_at?: string | null
+          sent_at?: string | null
+          expires_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rental_agreements_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rental_agreements_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           address: string | null
@@ -588,6 +660,10 @@ export type CategoryUpdate = Database['public']['Tables']['categories']['Update'
 export type Booking = Database['public']['Tables']['bookings']['Row']
 export type BookingInsert = Database['public']['Tables']['bookings']['Insert']
 export type BookingUpdate = Database['public']['Tables']['bookings']['Update']
+
+export type RentalAgreement = Database['public']['Tables']['rental_agreements']['Row']
+export type RentalAgreementInsert = Database['public']['Tables']['rental_agreements']['Insert']
+export type RentalAgreementUpdate = Database['public']['Tables']['rental_agreements']['Update']
 
 export type Review = Database['public']['Tables']['reviews']['Row']
 export type ReviewInsert = Database['public']['Tables']['reviews']['Insert']

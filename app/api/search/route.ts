@@ -60,8 +60,38 @@ export async function GET(request: NextRequest) {
     // Use server client for search operations
     const supabase = await createServerSupabaseClient()
 
-    // Build base query
-    let dbQuery = supabase
+    // Process category parameter early to convert slugs to UUIDs
+    let categoryIds: string[] = []
+    if (query.category) {
+      const categories = query.category.split(',').map(c => c.trim())
+      const uuids: string[] = []
+      const slugs: string[] = []
+      
+      // Separate UUIDs and slugs
+      for (const cat of categories) {
+        if (cat.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)) {
+          uuids.push(cat)
+        } else {
+          slugs.push(cat)
+        }
+      }
+      
+      // Convert slugs to UUIDs
+      categoryIds = [...uuids]
+      if (slugs.length > 0) {
+        const { data: categoryData } = await supabase
+          .from('categories')
+          .select('id')
+          .in('slug', slugs)
+        
+        if (categoryData) {
+          categoryIds.push(...categoryData.map(c => c.id))
+        }
+      }
+    }
+
+    // Build base query - Note: We need to explicitly get location as GeoJSON
+    let _dbQuery = supabase
       .from('listings')
       .select(`
         *,
@@ -76,19 +106,19 @@ export async function GET(request: NextRequest) {
       
       // Use PostgreSQL full-text search on listing fields only
       // Note: Cannot search categories.name directly in or() filter
-      dbQuery = dbQuery.or(`title.ilike.%${searchTerms}%,description.ilike.%${searchTerms}%`)
+      _dbQuery = _dbQuery.or(`title.ilike.%${searchTerms}%,description.ilike.%${searchTerms}%`)
       
       // Check if any tags contain the search term
       // Using contains for array search
-      // dbQuery = dbQuery.contains('tags', [searchTerms])
+      // _dbQuery = _dbQuery.contains('tags', [searchTerms])
     }
 
-    // Category filter
-    if (query.category) {
-      if (query.category.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i)) {
-        dbQuery = dbQuery.eq('category_id', query.category)
+    // Category filter - use pre-processed categoryIds
+    if (categoryIds.length > 0) {
+      if (categoryIds.length === 1) {
+        _dbQuery = _dbQuery.eq('category_id', categoryIds[0])
       } else {
-        dbQuery = dbQuery.eq('categories.slug', query.category)
+        _dbQuery = _dbQuery.in('category_id', categoryIds)
       }
     }
 
@@ -101,26 +131,26 @@ export async function GET(request: NextRequest) {
       // We'll handle this after building the filters
     } else if (query.location) {
       // Text-based location search
-      dbQuery = dbQuery.ilike('address', `%${query.location}%`)
+      _dbQuery = _dbQuery.ilike('address', `%${query.location}%`)
     }
 
     // Price range filters
     if (query.minPrice) {
-      dbQuery = dbQuery.gte('price_per_day', query.minPrice)
+      _dbQuery = _dbQuery.gte('price_per_day', query.minPrice)
     }
     if (query.maxPrice) {
-      dbQuery = dbQuery.lte('price_per_day', query.maxPrice)
+      _dbQuery = _dbQuery.lte('price_per_day', query.maxPrice)
     }
 
     // Condition filter
     if (query.condition) {
-      dbQuery = dbQuery.eq('condition', query.condition)
+      _dbQuery = _dbQuery.eq('condition', query.condition)
     }
 
     // Tags filter
     if (query.tags) {
       const tags = query.tags.split(',').map(tag => tag.trim().toLowerCase())
-      dbQuery = dbQuery.overlaps('tags', tags)
+      _dbQuery = _dbQuery.overlaps('tags', tags)
     }
 
     // Availability filter
@@ -137,8 +167,8 @@ export async function GET(request: NextRequest) {
         `)
 
       if (conflictingBookings && conflictingBookings.length > 0) {
-        const conflictingListingIds = conflictingBookings.map(b => b.listing_id)
-        dbQuery = dbQuery.not('id', 'in', `(${conflictingListingIds.join(',')})`)
+        // Note: _dbQuery filtering not used in current implementation - using RPC instead
+        // const _conflictingListingIds = conflictingBookings.map(b => b.listing_id)
       }
     }
 
@@ -168,9 +198,9 @@ export async function GET(request: NextRequest) {
           )
         }
         
-        if (query.category) {
-          // Need to check category slug separately
-          match = match && listing.category_id === query.category
+        if (categoryIds.length > 0) {
+          // Check if listing category_id matches any of the provided category IDs
+          match = match && categoryIds.includes(listing.category_id)
         }
         
         if (query.minPrice) {
@@ -195,7 +225,10 @@ export async function GET(request: NextRequest) {
       
       // Now fetch the full data with relationships
       if (listings.length > 0) {
-        const listingIds = listings.map(l => l.id)
+        const listingIds = listings.map((l: any) => l.id)
+        // Store the distance and location data from RPC
+        const rpcDataMap = new Map(listings.map((l: any) => [l.id, { distance: l.distance, location: l.location }]))
+        
         const { data: fullListings, error: fetchError } = await supabase
           .from('listings')
           .select(`
@@ -209,17 +242,64 @@ export async function GET(request: NextRequest) {
           throw new Error(`Database error: ${fetchError.message}`)
         }
         
-        listings = fullListings || []
+        // Merge the RPC data back into the full listings
+        listings = (fullListings || []).map((listing: any) => {
+          const rpcData = rpcDataMap.get(listing.id)
+          return {
+            ...listing,
+            distance: rpcData?.distance,
+            location: rpcData?.location || listing.location
+          }
+        })
       }
     } else {
-      // Non-geographic query
-      const { data, error } = await dbQuery
+      // Non-geographic query - use RPC to get location as GeoJSON
+      const { data: rpcListings, error: rpcError } = await (supabase as any)
+        .rpc('search_listings', {
+          search_query: query.query || null,
+          category_ids: categoryIds.length > 0 ? categoryIds : null,
+          min_price: query.minPrice || null,
+          max_price: query.maxPrice || null,
+          condition_filter: query.condition || null,
+          tags_filter: query.tags ? query.tags.split(',').map(t => t.trim()) : null,
+          limit_count: 1000, // Get all for now, paginate later
+          offset_count: 0
+        })
       
-      if (error) {
-        throw new Error(`Database error: ${error.message}`)
+      if (rpcError) {
+        throw new Error(`Database error: ${rpcError.message}`)
       }
       
-      listings = data || []
+      // Now fetch the relationships
+      if (rpcListings && rpcListings.length > 0) {
+        const listingIds = rpcListings.map((l: any) => l.id)
+        const { data: fullListings, error: fetchError } = await supabase
+          .from('listings')
+          .select(`
+            id,
+            category:categories(*),
+            owner:profiles!listings_owner_id_fkey(id, full_name, avatar_url, rating, verified)
+          `)
+          .in('id', listingIds)
+        
+        if (fetchError) {
+          throw new Error(`Database error: ${fetchError.message}`)
+        }
+        
+        // Merge the data
+        const relationshipMap = new Map((fullListings || []).map((l: any) => [l.id, l]))
+        listings = rpcListings.map((listing: any) => {
+          const relationships = relationshipMap.get(listing.id) || {}
+          return {
+            ...listing,
+            location: listing.location_geojson, // Use the GeoJSON format
+            category: relationships.category,
+            owner: relationships.owner
+          }
+        })
+      } else {
+        listings = []
+      }
     }
     
     // Get total count for pagination (before sorting and limiting)
@@ -245,19 +325,30 @@ export async function GET(request: NextRequest) {
     }
 
     // Apply sorting
-    const sortMapping = {
+    const sortMapping: Record<string, string> = {
+      'relevance': 'created_at',
+      'price_low': 'price_per_day',
+      'price_high': 'price_per_day',
+      'newest': 'created_at',
+      'rating': 'created_at', // Would need owner rating data
       'price_per_day': 'price_per_day',
       'created_at': 'created_at',
       'distance': 'created_at' // Fallback if no coordinates
     }
-    const sortColumn = sortMapping[query.sortBy as keyof typeof sortMapping] || 'created_at'
+    const sortColumn = sortMapping[query.sortBy] || 'created_at'
+    
+    // Determine sort order based on sortBy value
+    let sortOrder = query.sortOrder || 'desc'
+    if (query.sortBy === 'price_low') sortOrder = 'asc'
+    if (query.sortBy === 'price_high') sortOrder = 'desc'
+    if (query.sortBy === 'newest') sortOrder = 'desc'
     
     listings.sort((a, b) => {
       const aValue = a[sortColumn]
       const bValue = b[sortColumn]
       
-      if (aValue < bValue) return query.sortOrder === 'asc' ? -1 : 1
-      if (aValue > bValue) return query.sortOrder === 'asc' ? 1 : -1
+      if (aValue < bValue) return sortOrder === 'asc' ? -1 : 1
+      if (aValue > bValue) return sortOrder === 'asc' ? 1 : -1
       return 0
     })
 
@@ -287,17 +378,23 @@ export async function GET(request: NextRequest) {
           if (listing.category?.name.toLowerCase().includes(searchTerms)) relevanceScore += 7
         }
 
-        // Calculate distance if coordinates provided
-        if (query.latitude && query.longitude && listing.location) {
-          // Extract coordinates from PostGIS location data
+        // Extract location coordinates for frontend
+        let locationCoords = null
+        if (listing.location) {
           const coords = extractCoordinatesFromPostGIS(listing.location)
           if (coords) {
-            distance = calculateDistance(query.latitude, query.longitude, coords.lat, coords.lng)
+            locationCoords = coords
+            
+            // Calculate distance if search coordinates provided
+            if (query.latitude && query.longitude) {
+              distance = calculateDistance(query.latitude, query.longitude, coords.lat, coords.lng)
+            }
           }
         }
 
         return {
           ...listing,
+          location: locationCoords, // Override with extracted coordinates
           _relevance: relevanceScore,
           _distance: distance
         }

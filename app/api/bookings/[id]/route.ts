@@ -352,7 +352,7 @@ async function handleDELETE(
       return handleAuthorizationError('You can only cancel your own bookings')
     }
 
-    // Check if booking can be cancelled
+    // Check if booking can be cancelled/deleted
     if ((existingBooking as any).status === 'completed') {
       return NextResponse.json(
         { error: 'Completed bookings cannot be cancelled' },
@@ -360,14 +360,30 @@ async function handleDELETE(
       )
     }
 
+    // If booking is already cancelled, allow permanent deletion
     if ((existingBooking as any).status === 'cancelled') {
-      return NextResponse.json(
-        { error: 'Booking is already cancelled' },
-        { status: 400 }
+      const { error: deleteError } = await supabase
+        .from('bookings')
+        .delete()
+        .eq('id', id as any)
+
+      if (deleteError) {
+        throw new Error(`Failed to delete booking: ${deleteError.message}`)
+      }
+
+      logAPIRequest(request, 'DELETE_BOOKING_PERMANENT_SUCCESS', user.id)
+
+      const response = NextResponse.json(
+        createSuccessResponse(
+          { id, deleted: true },
+          'Booking deleted permanently'
+        )
       )
+
+      return addSecurityHeaders(response)
     }
 
-    // Update booking status to cancelled instead of deleting
+    // Otherwise, update booking status to cancelled
     const { data: cancelledBooking, error } = await supabase
       .from('bookings')
       .update({

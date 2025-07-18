@@ -32,11 +32,13 @@ import { Calendar as CalendarIcon, Filter, X, MapPin, Crosshair } from "lucide-r
 
 export interface SearchFiltersProps {
   priceRange: [number, number]
-  onPriceRangeChange: (range: [number, number]) => void
+  onPriceRangeChange: (range: number[]) => void
   maxPrice?: number
   categories: string[]
   selectedCategories: string[]
   onCategoriesChange: (categories: string[]) => void
+  condition?: string
+  onConditionChange: (condition: string) => void
   location: string
   onLocationChange: (location: string) => void
   coordinates?: { lat: number; lng: number }
@@ -54,12 +56,12 @@ export interface SearchFiltersProps {
 }
 
 const sortOptions = [
-  { value: "relevance", label: "Relevance" },
-  { value: "distance", label: "Distance" },
-  { value: "price-asc", label: "Price: Low to High" },
-  { value: "price-desc", label: "Price: High to Low" },
+  { value: "relevance", label: "Most Relevant" },
+  { value: "price_low", label: "Price: Low to High" },
+  { value: "price_high", label: "Price: High to Low" },
+  { value: "newest", label: "Newest First" },
   { value: "rating", label: "Highest Rated" },
-  { value: "recent", label: "Recently Added" },
+  { value: "distance", label: "Distance" },
 ]
 
 export default function SearchFilters({
@@ -69,6 +71,8 @@ export default function SearchFilters({
   categories,
   selectedCategories,
   onCategoriesChange,
+  condition,
+  onConditionChange,
   location,
   onLocationChange,
   coordinates,
@@ -93,15 +97,18 @@ export default function SearchFilters({
     }
   }
 
-  const hasActiveFilters =
-    priceRange[0] > 0 ||
-    priceRange[1] < maxPrice ||
-    selectedCategories.length > 0 ||
-    location.trim() !== "" ||
-    coordinates !== undefined ||
-    radius !== 10 ||
-    availableDate !== undefined ||
-    sortBy !== "relevance"
+  const activeFilterCount = [
+    priceRange[0] > 0 || priceRange[1] < maxPrice,
+    selectedCategories.length > 0,
+    condition !== undefined && condition !== "",
+    location.trim() !== "",
+    coordinates !== undefined,
+    radius !== 10,
+    availableDate !== undefined,
+    sortBy && sortBy !== "relevance"
+  ].filter(Boolean).length
+
+  const hasActiveFilters = activeFilterCount > 0
 
   const FilterContent = () => (
     <div className="space-y-6">
@@ -153,6 +160,38 @@ export default function SearchFilters({
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Condition Filter */}
+      <div>
+        <Label className="text-base font-semibold mb-4 block">
+          Condition
+        </Label>
+        <Select 
+          value={condition} 
+          onValueChange={(value) => onConditionChange(value)}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="Any condition" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="new">New</SelectItem>
+            <SelectItem value="like_new">Like New</SelectItem>
+            <SelectItem value="good">Good</SelectItem>
+            <SelectItem value="fair">Fair</SelectItem>
+            <SelectItem value="poor">Poor</SelectItem>
+          </SelectContent>
+        </Select>
+        {condition && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => onConditionChange('')}
+            className="mt-2 h-7 text-xs"
+          >
+            Clear condition
+          </Button>
+        )}
       </div>
 
       {/* Location */}
@@ -304,7 +343,14 @@ export default function SearchFilters({
           className
         )}
       >
-        <h2 className="text-lg font-semibold mb-6">Filters</h2>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-lg font-semibold">Filters</h2>
+          {hasActiveFilters && (
+            <span className="bg-primary text-primary-foreground text-xs px-2 py-1 rounded-full">
+              {activeFilterCount}
+            </span>
+          )}
+        </div>
         <FilterContent />
       </aside>
 
@@ -317,11 +363,7 @@ export default function SearchFilters({
               Filters
               {hasActiveFilters && (
                 <span className="ml-1 rounded-full bg-primary text-primary-foreground text-xs px-2 py-0.5">
-                  {selectedCategories.length +
-                    (location ? 1 : 0) +
-                    (coordinates ? 1 : 0) +
-                    (availableDate ? 1 : 0) +
-                    (priceRange[0] > 0 || priceRange[1] < maxPrice ? 1 : 0)}
+                  {activeFilterCount}
                 </span>
               )}
             </Button>

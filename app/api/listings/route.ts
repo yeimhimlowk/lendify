@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { ZodError } from 'zod'
 import { createServerSupabaseClient } from '@/lib/supabase/server'
 import { withMiddleware, apiMiddleware } from '@/lib/api/middleware'
 import { handleAPIError, /* handleAuthError, */ handleValidationError } from '@/lib/api/errors'
@@ -338,7 +339,7 @@ async function handlePOST(request: NextRequest) {
     // if (error.message.includes('Authentication')) {
     //   return handleAuthError(error.message)
     // } // Removed for auth cleanup
-    if (error.name === 'ZodError') {
+    if (error instanceof ZodError || error.name === 'ZodError') {
       return handleValidationError(error)
     }
     return handleAPIError(error)
